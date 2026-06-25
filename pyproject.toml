@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdfrejuvenator"
+version = "0.3.0"
+description = "Convert PDFs into editable SVG review packets."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Nathan Hanish" }
+]
+license = "Apache-2.0"
+dependencies = [
+  "PyMuPDF>=1.24",
+  "Pillow>=10",
+  "fonttools>=4.0",
+  "reportlab>=4.0",
+  "rapidocr-onnxruntime>=1.3",
+  "opencv-python-headless>=4.0",
+  "python-docx>=1.0",
+  "pypdf>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.5"
+]
+
+[project.scripts]
+pdfrejuvenator = "pdfrejuvenator.cli:main"
+
+[tool.setuptools]
+packages = ["pdfrejuvenator"]
+
+[tool.setuptools.package-dir]
+pdfrejuvenator = "pdfrejuvenator"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

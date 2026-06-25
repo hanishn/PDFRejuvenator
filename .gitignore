@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# PDFRejuvenator generated/local data
+outputs/
+source/
+source_pdfs/
+*_pdfrejuvenator_output/
+PDFREJUVENATOR_REVIEW_PACKET/
+PDFREJUVENATOR_REVIEW_PACKET.zip
+
+# Private/local fixtures
+configs/private/
+private_fixtures/
+*.pdf
+!samples/**/*.pdf
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
