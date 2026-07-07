@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -103,6 +104,83 @@ def import_core_scripts() -> list[CheckResult]:
     return results
 
 
+def synthetic_ocr_record(region_id: str, text: str, bbox: tuple[float, float, float, float]) -> dict[str, object]:
+    return {
+        "region_id": region_id,
+        "text": text,
+        "bbox_points": list(bbox),
+    }
+
+
+def check_ocr_table_structural_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SRC))
+    from doc_pipeline import export_ocr_table_csvs  # noqa: PLC0415
+
+    false_positive_records = [
+        synthetic_ocr_record("fp_title", "Damage Table", (34.0, 100.0, 112.0, 112.0)),
+        synthetic_ocr_record("fp_l1", "left column prose", (34.0, 124.0, 210.0, 136.0)),
+        synthetic_ocr_record("fp_r1", "right column unrelated prose", (430.0, 124.0, 578.0, 136.0)),
+        synthetic_ocr_record("fp_l2", "left column prose", (35.0, 146.0, 211.0, 158.0)),
+        synthetic_ocr_record("fp_r2", "right column unrelated prose", (428.0, 146.0, 577.0, 158.0)),
+        synthetic_ocr_record("fp_l3", "left column prose", (35.0, 168.0, 212.0, 180.0)),
+        synthetic_ocr_record("fp_r3", "right column unrelated prose", (429.0, 168.0, 576.0, 180.0)),
+    ]
+    compact_table_records = [
+        synthetic_ocr_record("ok_title", "Experience Table", (318.0, 100.0, 420.0, 112.0)),
+        synthetic_ocr_record("ok_l1", "1", (318.0, 124.0, 334.0, 136.0)),
+        synthetic_ocr_record("ok_r1", "100", (430.0, 124.0, 462.0, 136.0)),
+        synthetic_ocr_record("ok_l2", "2", (318.0, 146.0, 334.0, 158.0)),
+        synthetic_ocr_record("ok_r2", "200", (430.0, 146.0, 462.0, 158.0)),
+        synthetic_ocr_record("ok_l3", "3", (318.0, 168.0, 334.0, 180.0)),
+        synthetic_ocr_record("ok_r3", "300", (430.0, 168.0, 462.0, 180.0)),
+    ]
+    numeric_eof_records = [
+        synthetic_ocr_record("num_l1", "10-19", (40.0, 100.0, 80.0, 112.0)),
+        synthetic_ocr_record("num_r1", "result one", (128.0, 100.0, 220.0, 112.0)),
+        synthetic_ocr_record("num_l2", "20-29", (40.0, 122.0, 80.0, 134.0)),
+        synthetic_ocr_record("num_r2", "result two", (128.0, 122.0, 220.0, 134.0)),
+        synthetic_ocr_record("num_l3", "30-39", (40.0, 144.0, 80.0, 156.0)),
+        synthetic_ocr_record("num_r3", "result three", (128.0, 144.0, 220.0, 156.0)),
+    ]
+    config = {"tables": {"ocr_reconstruction_enabled": True, "ocr_row_tolerance_points": 5.0}}
+    results: list[CheckResult] = []
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        false_tables = export_ocr_table_csvs(false_positive_records, "fixture_false", temp_path / "false", config)
+        compact_tables = export_ocr_table_csvs(compact_table_records, "fixture_table", temp_path / "compact", config)
+        numeric_tables = export_ocr_table_csvs(numeric_eof_records, "fixture_numeric", temp_path / "numeric", config)
+    results.append(CheckResult(
+        "ocr table structural negative fixture",
+        "PASS" if len(false_tables) == 0 else "FAIL",
+        f"expected 0 false tables, got {len(false_tables)}",
+    ))
+    results.append(CheckResult(
+        "ocr compact title table fixture",
+        "PASS" if len(compact_tables) == 1 else "FAIL",
+        f"expected 1 compact table, got {len(compact_tables)}",
+    ))
+    results.append(CheckResult(
+        "ocr numeric eof flush fixture",
+        "PASS" if len(numeric_tables) == 1 else "FAIL",
+        f"expected 1 numeric table, got {len(numeric_tables)}",
+    ))
+    return results
+
+
+def check_page_selection_helpers() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from run_pdf_book import parse_pages  # noqa: PLC0415
+    from run_pdf_rejuvenation import page_pipeline_bounds  # noqa: PLC0415
+
+    checks = [
+        ("page parse range", parse_pages("1-3") == [1, 2, 3], "1-3 should parse to [1, 2, 3]"),
+        ("page parse sparse", parse_pages("1,5") == [1, 5], "1,5 should parse to [1, 5]"),
+        ("page bounds single", page_pipeline_bounds("31", 100) == ("31", "31"), "single page should stay bounded"),
+        ("page bounds sparse", page_pipeline_bounds("1,5", 100) == (None, None), "sparse pages should route to --pages"),
+    ]
+    return [CheckResult(name, "PASS" if passed else "FAIL", detail) for name, passed, detail in checks]
+
+
 def print_results(results: list[CheckResult], verbose: bool) -> None:
     for result in results:
         if result.status == "PASS" and not verbose:
@@ -125,6 +203,8 @@ def main() -> int:
     results.extend(check_modules(OPTIONAL_RUNTIME_MODULES, required=False))
     results.extend(check_modules(DEV_TOOL_MODULES, required=False))
     results.extend(import_core_scripts())
+    results.extend(check_ocr_table_structural_validation())
+    results.extend(check_page_selection_helpers())
 
     failures = [result for result in results if result.status == "FAIL"]
     warnings = [result for result in results if result.status == "WARN"]

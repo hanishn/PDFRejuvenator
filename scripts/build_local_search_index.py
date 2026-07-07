@@ -26,6 +26,20 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def normalize_search_text(value: Any) -> str:
+    text = clean_text(value)
+    if not text:
+        return ""
+    text = text.replace("●", " bullet ")
+    text = re.sub(r"(?<=[A-Za-z])(?=\()", " ", text)
+    text = re.sub(r"(?<=\))(?=[A-Za-z0-9])", " ", text)
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
+    text = re.sub(r"(?<=[0-9%])(?=[A-Za-z])", " ", text)
+    text = re.sub(r"(?<=[A-Za-z])(?=[0-9])", " ", text)
+    text = re.sub(r"(?<=[.,:;!?])(?=[A-Za-z0-9])", " ", text)
+    return clean_text(text)
+
+
 def rel_artifact(path: str | None, page_root: Path) -> str:
     if not path:
         return ""
@@ -60,7 +74,7 @@ def make_record(
         "page": page_number,
         "page_id": page_manifest.get("page_id", ""),
         "record_type": record_type,
-        "text": clean_text(text),
+        "text": normalize_search_text(text),
         "artifact_path": artifact_path,
         "metadata": metadata or {},
     }
@@ -105,7 +119,10 @@ def build_records(run_root: Path) -> list[dict[str, Any]]:
             "tables": len(page_manifest.get("tables", [])),
             "embedded_images": len(page_manifest.get("embedded_images", [])),
         }
-        page_text = " ".join(clean_text(region.get("text")) for region in page_manifest.get("textbox_regions", []))
+        ocr_records = load_ocr_records(page_manifest, page_root)
+        page_text_parts = [clean_text(region.get("text")) for region in page_manifest.get("textbox_regions", [])]
+        page_text_parts.extend(clean_text(record.get("text")) for record in ocr_records)
+        page_text = " ".join(part for part in page_text_parts if part)
         records.append(
             make_record(
                 book_manifest=book_manifest,
@@ -146,6 +163,29 @@ def build_records(run_root: Path) -> list[dict[str, Any]]:
                     record_type="text_region",
                     text=text,
                     artifact_path=rel_artifact(region.get("file"), page_root),
+                    metadata=metadata,
+                )
+            )
+
+        for ocr_index, ocr_record in enumerate(ocr_records, start=1):
+            text = clean_text(ocr_record.get("text"))
+            if not text:
+                continue
+            metadata = {
+                "record_id": ocr_record.get("region_id", f"ocr_{ocr_index:04d}"),
+                "region_id": ocr_record.get("region_id", ""),
+                "bbox_points": ocr_record.get("bbox_points", []),
+                "engine": ocr_record.get("engine", ""),
+                "confidence": ocr_record.get("confidence"),
+                "fallback": ocr_record.get("fallback", False),
+                "original_text": text,
+            }
+            records.append(
+                make_record(
+                    book_manifest=book_manifest,
+                    page_manifest=page_manifest,
+                    record_type="ocr_text",
+                    text=text,
                     metadata=metadata,
                 )
             )
@@ -199,6 +239,23 @@ def build_records(run_root: Path) -> list[dict[str, Any]]:
             )
 
     return records
+
+
+def load_ocr_records(page_manifest: dict[str, Any], page_root: Path) -> list[dict[str, Any]]:
+    ocr = page_manifest.get("ocr", {})
+    if not isinstance(ocr, dict):
+        return []
+    ocr_json = ocr.get("ocr_json")
+    if not ocr_json:
+        return []
+    path = Path(ocr_json)
+    if not path.is_absolute():
+        path = page_root / path
+    if not path.exists():
+        return []
+    payload = read_json(path)
+    records = payload.get("records", []) if isinstance(payload, dict) else []
+    return [record for record in records if isinstance(record, dict)]
 
 
 def write_index(output_dir: Path, records: list[dict[str, Any]], run_root: Path) -> None:

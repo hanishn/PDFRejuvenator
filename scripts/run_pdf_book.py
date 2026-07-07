@@ -14,6 +14,20 @@ sys.path.insert(0, str(ROOT / "src"))
 from doc_pipeline import read_json, run_pipeline, sha256_file, write_json  # noqa: E402
 
 
+def parse_pages(value: str) -> list[int]:
+    pages: set[int] = set()
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start, end = part.split("-", 1)
+            pages.update(range(int(start), int(end) + 1))
+        else:
+            pages.add(int(part))
+    return sorted(pages)
+
+
 def default_book_config(source_pdf: Path, output_root: Path, book_id: str) -> dict[str, Any]:
     return {
         "book_id": book_id,
@@ -82,6 +96,7 @@ def main() -> int:
     parser.add_argument("--book-id", default="pdfrejuvenator_book", help="Stable book id for generated page ids.")
     parser.add_argument("--page-start", type=int, default=None)
     parser.add_argument("--page-end", type=int, default=None)
+    parser.add_argument("--pages", default=None, help="Comma-separated exact pages/ranges to process.")
     parser.add_argument("--dpi", type=int, default=None)
     parser.add_argument("--ocr-engine", choices=["pymupdf_text_blocks", "rapidocr"], default=None)
     parser.add_argument("--clean", action="store_true")
@@ -108,13 +123,18 @@ def main() -> int:
 
     source_pdf = Path(config["source_pdf"])
     doc = fitz.open(source_pdf)
-    page_start = int(args.page_start or config.get("page_start_1based") or 1)
-    page_end = args.page_end if args.page_end is not None else config.get("page_end_1based")
-    if page_end is None:
-        page_end = len(doc)
-    page_end = int(page_end)
-    if page_start < 1 or page_end > len(doc) or page_start > page_end:
-        raise SystemExit(f"invalid page range {page_start}..{page_end} for {len(doc)} pages")
+    if args.pages:
+        page_numbers = parse_pages(args.pages)
+    else:
+        page_start = int(args.page_start or config.get("page_start_1based") or 1)
+        page_end = args.page_end if args.page_end is not None else config.get("page_end_1based")
+        if page_end is None:
+            page_end = len(doc)
+        page_end = int(page_end)
+        page_numbers = list(range(page_start, page_end + 1))
+    if not page_numbers or min(page_numbers) < 1 or max(page_numbers) > len(doc):
+        requested = args.pages or f"{page_numbers[0] if page_numbers else '?'}..{page_numbers[-1] if page_numbers else '?'}"
+        raise SystemExit(f"invalid page selection {requested} for {len(doc)} pages")
     doc.close()
 
     output_root = Path(config["output_root"])
@@ -128,7 +148,7 @@ def main() -> int:
     pages_root.mkdir(parents=True, exist_ok=True)
 
     page_manifests = []
-    for page_number in range(page_start, page_end + 1):
+    for page_number in page_numbers:
         cfg = page_config(config, page_number, config_dir, pages_root)
         manifest = run_pipeline(cfg, clean=True)
         page_manifests.append({
@@ -147,14 +167,15 @@ def main() -> int:
             "ocr_engine": manifest["ocr"]["engine"],
             "ocr_fallback": manifest["ocr"]["fallback"],
         })
-        print(f"page {page_number}/{page_end}: {manifest['page_id']} textboxes={len(manifest['textbox_regions'])} images={len(manifest['embedded_images'])}")
+        print(f"page {page_number}/{page_numbers[-1]}: {manifest['page_id']} textboxes={len(manifest['textbox_regions'])} images={len(manifest['embedded_images'])}")
 
     book_manifest = {
         "book_id": config["book_id"],
         "source_pdf": str(source_pdf),
         "source_pdf_sha256": sha256_file(source_pdf),
-        "page_start_1based": page_start,
-        "page_end_1based": page_end,
+        "page_start_1based": page_numbers[0],
+        "page_end_1based": page_numbers[-1],
+        "pages_requested": page_numbers,
         "page_count_processed": len(page_manifests),
         "output_root": str(output_root),
         "render": config["render"],

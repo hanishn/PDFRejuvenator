@@ -2363,6 +2363,10 @@ def process_page(output_root: Path, package_root: Path, manifest_path: Path, ink
     tree = ET.parse(source_svg)
     root = tree.getroot()
     layer = find_layer(root)
+    has_ocr_editable_overlay = any(
+        element.attrib.get("data-pdfrejuvenator-layer-role") == "ocr_editable_text_overlay"
+        for element in root.iter()
+    )
     # Body fonts render more reliably with original metrics, but the extracted
     # Blambot casual face has collapsed advances. Calibrate only that display
     # face from the source SVG's positioned glyph examples.
@@ -2571,6 +2575,13 @@ def process_page(output_root: Path, package_root: Path, manifest_path: Path, ink
         primary_review_diff = source_render_background_diff
         primary_review_edit_test_svg = source_render_background_svg
         primary_review_edit_test_render = source_render_background_render
+    if has_ocr_editable_overlay:
+        primary_review_variant = "ocr_editable_overlay"
+        primary_review_svg = svg
+        primary_review_render = render
+        primary_review_diff = diff
+        primary_review_edit_test_svg = non_table_edited_svg
+        primary_review_edit_test_render = non_table_edited_render
     return {
         "page": page,
         "status": "PASS",

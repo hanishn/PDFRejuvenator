@@ -57,6 +57,30 @@ FORBIDDEN_PATTERNS = [
     ("private key block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
 ]
 
+PRIVATE_CONTENT_PATTERNS = [
+    ("private/branded term", re.compile(pattern, re.IGNORECASE))
+    for pattern in [
+        r"\bpalladium\b",
+        r"\bpf2\b",
+        r"\bpalladium\s+fantasy\b",
+        r"\bteenage\s+mutant\s+ninja\s+turtles\b",
+        r"\btmnt\b",
+        r"\brifts\b",
+        r"\bmegaverse\b",
+        r"\bmegaversal\b",
+        r"\brobotech\b",
+        r"\bheroes\s+unlimited\b",
+        r"\bnightbane\b",
+        r"\bafter\s+the\s+bomb\b",
+        r"\bsplicers\b",
+        r"\bdead\s+reign\b",
+    ]
+]
+
+PUBLIC_SOURCE_PDF_PATTERNS = [
+    re.compile(r"^source/shadow_power_play_sample_[0-9a-f]+\.pdf$", re.IGNORECASE),
+]
+
 
 def load_extra_patterns(path: Path | None) -> list[tuple[str, re.Pattern[str]]]:
     if path is None:
@@ -100,6 +124,20 @@ def scan_file(path: Path, root: Path, patterns: list[tuple[str, re.Pattern[str]]
     return findings
 
 
+def scan_path(path: Path, root: Path, patterns: list[tuple[str, re.Pattern[str]]]) -> list[Finding]:
+    rel = path.relative_to(root)
+    rel_posix = rel.as_posix()
+    findings: list[Finding] = []
+    if rel.suffix.lower() == ".pdf" and "source" in rel.parts:
+        allowed_public_source_pdf = any(pattern.search(rel_posix) for pattern in PUBLIC_SOURCE_PDF_PATTERNS)
+        if not allowed_public_source_pdf:
+            findings.append(Finding("private source pdf", rel, 0, "source PDFs must be public sample fixtures only"))
+    for category, pattern in patterns:
+        if pattern.search(rel_posix):
+            findings.append(Finding(category, rel, 0, "matched path"))
+    return findings
+
+
 def scan_pdf(path: Path, root: Path, patterns: list[tuple[str, re.Pattern[str]]]) -> list[Finding]:
     try:
         import fitz
@@ -124,6 +162,10 @@ def scan_root(root: Path, patterns: list[tuple[str, re.Pattern[str]]]) -> list[F
         if not path.is_file():
             continue
         rel = path.relative_to(root)
+        path_findings = scan_path(path, root, patterns)
+        findings.extend(path_findings)
+        if any(finding.category == "private source pdf" for finding in path_findings):
+            continue
         if any(part in GENERATED_PARTS for part in rel.parts) or rel.suffix.lower() in GENERATED_SUFFIXES:
             findings.append(Finding("generated file", rel, 0, "remove generated cache/artifact from public export"))
             continue
@@ -141,7 +183,7 @@ def main() -> int:
     args = parser.parse_args()
 
     root = args.root.resolve()
-    patterns = [*FORBIDDEN_PATTERNS, *load_extra_patterns(args.denylist)]
+    patterns = [*FORBIDDEN_PATTERNS, *PRIVATE_CONTENT_PATTERNS, *load_extra_patterns(args.denylist)]
     findings = scan_root(root, patterns)
     for finding in findings:
         print(f"{finding.category}: {finding.path}:{finding.line_number}: {finding.line}")

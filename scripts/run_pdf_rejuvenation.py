@@ -68,6 +68,15 @@ def run_command(command: list[str], timeout: int | None = None) -> None:
     print(f"DONE exit=0 seconds={duration}", flush=True)
 
 
+def page_pipeline_bounds(pages: str, page_count: int) -> tuple[str | None, str | None]:
+    if "," in pages:
+        return None, None
+    if "-" in pages:
+        start, end = pages.split("-", 1)
+        return start, end
+    return pages, pages
+
+
 def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -146,6 +155,7 @@ def main() -> int:
     parser.add_argument("--skip-consolidated-output", action="store_true", help="Do not build the clean user-facing output folder.")
     parser.add_argument("--skip-search-index", action="store_true", help="Do not build the local _search index.")
     parser.add_argument("--validation-mode", choices=["internal", "external"], default="internal", help="Internal mode fails hard; external mode keeps output and writes validation reports.")
+    parser.add_argument("--ocr-engine", choices=["pymupdf_text_blocks", "rapidocr"], default=None, help="OCR engine for page extraction.")
     parser.add_argument("--pages", default=None, help="Optional page range for testing, e.g. 1-5. Defaults to the full PDF.")
     parser.add_argument("--chunk-size", type=int, default=5)
     parser.add_argument("--workers", type=int, default=1, help="Number of rollout chunks to run concurrently.")
@@ -181,6 +191,7 @@ def main() -> int:
     with fitz.open(staged_pdf) as doc:
         page_count = doc.page_count
     pages = args.pages or f"1-{page_count}"
+    page_start, page_end = page_pipeline_bounds(pages, page_count)
 
     if not args.skip_page_pipeline:
         command = [
@@ -192,13 +203,15 @@ def main() -> int:
             str(pipeline_root),
             "--book-id",
             book_id,
-            "--page-start",
-            pages.split("-", 1)[0] if "-" in pages and "," not in pages else "1",
-            "--page-end",
-            pages.split("-", 1)[1] if "-" in pages and "," not in pages else str(page_count),
         ]
+        if page_start is None or page_end is None:
+            command.extend(["--pages", pages])
+        else:
+            command.extend(["--page-start", page_start, "--page-end", page_end])
         if args.clean:
             command.append("--clean")
+        if args.ocr_engine:
+            command.extend(["--ocr-engine", args.ocr_engine])
         run_command(command)
     elif not (pipeline_root / "pages").exists():
         raise SystemExit(f"--skip-page-pipeline requested but no pipeline pages folder exists: {pipeline_root / 'pages'}")

@@ -865,6 +865,257 @@ def export_table_csvs(page: fitz.Page, page_id: str, table_dir: Path, config: di
     return records
 
 
+def ocr_bbox(record: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    bbox = record.get("bbox_points")
+    if not isinstance(bbox, list | tuple) or len(bbox) < 4:
+        return None
+    try:
+        left, top, right, bottom = [float(value) for value in bbox[:4]]
+    except (TypeError, ValueError):
+        return None
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
+
+
+def group_ocr_records_by_row(records: list[dict[str, Any]], row_tolerance: float) -> list[list[dict[str, Any]]]:
+    rows: list[tuple[float, list[dict[str, Any]]]] = []
+    for record in sorted(records, key=lambda item: ((ocr_bbox(item) or (0.0, 0.0, 0.0, 0.0))[1], (ocr_bbox(item) or (0.0, 0.0, 0.0, 0.0))[0])):
+        bbox = ocr_bbox(record)
+        if bbox is None:
+            continue
+        center_y = (bbox[1] + bbox[3]) / 2.0
+        for index, (row_center, row_records) in enumerate(rows):
+            if abs(center_y - row_center) <= row_tolerance:
+                row_records.append(record)
+                rows[index] = ((row_center * (len(row_records) - 1) + center_y) / len(row_records), row_records)
+                break
+        else:
+            rows.append((center_y, [record]))
+    return [
+        sorted(row_records, key=lambda item: (ocr_bbox(item) or (0.0, 0.0, 0.0, 0.0))[0])
+        for _center, row_records in sorted(rows, key=lambda item: item[0])
+    ]
+
+
+def ocr_row_text(row: list[dict[str, Any]]) -> str:
+    return " ".join(str(record.get("text", "")).strip() for record in row if str(record.get("text", "")).strip())
+
+
+def ocr_records_bbox(records: list[dict[str, Any]]) -> list[float]:
+    bboxes = [bbox for record in records if (bbox := ocr_bbox(record)) is not None]
+    if not bboxes:
+        return [0.0, 0.0, 0.0, 0.0]
+    return [
+        round(min(bbox[0] for bbox in bboxes), 3),
+        round(min(bbox[1] for bbox in bboxes), 3),
+        round(max(bbox[2] for bbox in bboxes), 3),
+        round(max(bbox[3] for bbox in bboxes), 3),
+    ]
+
+
+def normalize_ocr_table_rows(rows: list[list[dict[str, Any]]]) -> list[list[str]]:
+    text_rows = [[str(record.get("text", "")).strip() for record in row] for row in rows]
+    text_rows = [[cell for cell in row if cell] for row in text_rows if any(cell for cell in row)]
+    if not text_rows:
+        return []
+    max_columns = max(len(row) for row in text_rows)
+    return [row + [""] * (max_columns - len(row)) for row in text_rows]
+
+
+def table_title_like(text: str) -> bool:
+    compact = re.sub(r"[^a-z0-9]+", "", text.lower())
+    return "table" in compact and any(term in compact for term in ("experience", "point", "damage", "roll", "weapon", "skill"))
+
+
+def numeric_table_row_like(text: str) -> bool:
+    return bool(re.match(r"^\s*(?:\d{1,4}(?:[-–]\d{1,4})?|\d+d\d+)\b", text.lower()))
+
+
+def ocr_row_span_points(row: list[dict[str, Any]]) -> float:
+    bboxes = [bbox for record in row if (bbox := ocr_bbox(record)) is not None]
+    if not bboxes:
+        return 0.0
+    return max(bbox[2] for bbox in bboxes) - min(bbox[0] for bbox in bboxes)
+
+
+def ocr_row_column_centers(row: list[dict[str, Any]]) -> list[float]:
+    centers = []
+    for record in row:
+        bbox = ocr_bbox(record)
+        if bbox is not None:
+            centers.append((bbox[0] + bbox[2]) / 2.0)
+    return centers
+
+
+def ocr_table_structure_valid(
+    candidate_rows: list[list[dict[str, Any]]],
+    *,
+    max_row_span_points: float = 360.0,
+    min_data_rows: int = 3,
+) -> bool:
+    data_rows = [row for row in candidate_rows if len(row) >= 2]
+    if len(data_rows) < min_data_rows:
+        return False
+    row_spans = [ocr_row_span_points(row) for row in data_rows]
+    if not row_spans or max(row_spans) > max_row_span_points:
+        return False
+
+    first_centers: list[float] = []
+    second_centers: list[float] = []
+    for row in data_rows:
+        centers = ocr_row_column_centers(row)
+        if len(centers) < 2:
+            continue
+        first_centers.append(centers[0])
+        second_centers.append(centers[1])
+    if len(first_centers) < min_data_rows or len(second_centers) < min_data_rows:
+        return False
+    if max(first_centers) - min(first_centers) > 48.0:
+        return False
+    if max(second_centers) - min(second_centers) > 84.0:
+        return False
+    return True
+
+
+def write_table_record(
+    *,
+    records: list[dict[str, Any]],
+    rows: list[list[str]],
+    table_dir: Path,
+    page_id: str,
+    table_number: int,
+    classification: str,
+    confidence: float,
+) -> dict[str, Any]:
+    table_id = f"{page_id}_table_{table_number:03d}_{classification}"
+    out_path = table_dir / f"{table_id}.csv"
+    xlsx_path = table_dir / f"{table_id}.xlsx"
+    with out_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerows(rows)
+    make_xlsx(xlsx_path, rows, sheet_name=classification)
+    source_ids = [str(record.get("region_id", "")) for record in records if record.get("region_id")]
+    return {
+        "table_id": table_id,
+        "classification": classification,
+        "confidence": round(confidence, 3),
+        "source": "ocr_table_reconstruction",
+        "bbox_points": ocr_records_bbox(records),
+        "file": out_path,
+        "xlsx_file": xlsx_path,
+        "rows": rows,
+        "row_count": len(rows),
+        "max_columns": max((len(row) for row in rows), default=0),
+        "source_ocr_ids": source_ids,
+    }
+
+
+def export_ocr_table_csvs(
+    ocr_records: list[dict[str, Any]] | None,
+    page_id: str,
+    table_dir: Path,
+    config: dict[str, Any],
+    existing_count: int = 0,
+) -> list[dict[str, Any]]:
+    if not ocr_records or not bool(config.get("tables", {}).get("ocr_reconstruction_enabled", True)):
+        return []
+    table_dir.mkdir(parents=True, exist_ok=True)
+    row_tolerance = float(config.get("tables", {}).get("ocr_row_tolerance_points", 5.0))
+    max_ocr_row_span = float(config.get("tables", {}).get("ocr_max_table_row_span_points", 360.0))
+    max_title_table_height = float(config.get("tables", {}).get("ocr_max_title_table_height_points", 120.0))
+    rows = group_ocr_records_by_row(ocr_records, row_tolerance)
+    records: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+
+    for row_index, row in enumerate(rows):
+        title_records = [record for record in row if table_title_like(str(record.get("text", "")))]
+        if not title_records:
+            continue
+        title_bbox = ocr_records_bbox(title_records)
+        left_limit = title_bbox[0] - 12.0
+        right_limit = max(title_bbox[2] + 120.0, title_bbox[0] + 220.0)
+        candidate_rows: list[list[dict[str, Any]]] = [title_records]
+        blank_run = 0
+        for following in rows[row_index + 1:]:
+            following_bbox = ocr_records_bbox(following)
+            if following_bbox[1] - title_bbox[3] > max_title_table_height:
+                break
+            cells = [
+                record for record in following
+                if (bbox := ocr_bbox(record)) is not None and left_limit <= bbox[0] <= right_limit
+            ]
+            if len(cells) >= 2 or (cells and len(candidate_rows) <= 2):
+                candidate_rows.append(cells)
+                blank_run = 0
+            else:
+                blank_run += 1
+            if len(candidate_rows) >= 5 and blank_run >= 3:
+                break
+        data_rows = [candidate for candidate in candidate_rows[1:] if len(candidate) >= 2]
+        if len(data_rows) < 3:
+            continue
+        source_records = [record for candidate in candidate_rows for record in candidate]
+        source_key = {str(record.get("region_id", "")) for record in source_records}
+        if used_ids.intersection(source_key):
+            continue
+        if not ocr_table_structure_valid(candidate_rows[1:], max_row_span_points=max_ocr_row_span):
+            continue
+        text_rows = normalize_ocr_table_rows(candidate_rows)
+        classification = table_classification_from_rows(text_rows, fallback="ocr_reconstructed_table")
+        if "experience" in " ".join(" ".join(row_text) for row_text in text_rows).lower():
+            classification = "experience_points_table"
+        records.append(write_table_record(
+            records=source_records,
+            rows=text_rows,
+            table_dir=table_dir,
+            page_id=page_id,
+            table_number=existing_count + len(records) + 1,
+            classification=classification,
+            confidence=0.74,
+        ))
+        used_ids.update(source_key)
+
+    def flush_numeric_rows() -> None:
+        nonlocal numeric_rows
+        if len(numeric_rows) < 3:
+            numeric_rows = []
+            return
+        source_records = [record for candidate in numeric_rows for record in candidate]
+        source_key = {str(record.get("region_id", "")) for record in source_records}
+        if not used_ids.intersection(source_key) and ocr_table_structure_valid(
+            numeric_rows,
+            max_row_span_points=max_ocr_row_span,
+        ):
+            text_rows = []
+            for candidate in numeric_rows:
+                candidate_text = ocr_row_text(candidate)
+                match = re.match(r"^\s*((?:\d{1,4}(?:[-–]\d{1,4})?|\d+d\d+))\s*(.*)$", candidate_text, re.IGNORECASE)
+                text_rows.append([match.group(1), match.group(2).strip()] if match else [candidate_text])
+            classification = table_classification_from_rows(text_rows, fallback="ocr_reconstructed_table")
+            records.append(write_table_record(
+                records=source_records,
+                rows=text_rows,
+                table_dir=table_dir,
+                page_id=page_id,
+                table_number=existing_count + len(records) + 1,
+                classification=classification,
+                confidence=0.68,
+            ))
+            used_ids.update(source_key)
+        numeric_rows = []
+
+    numeric_rows: list[list[dict[str, Any]]] = []
+    for row in rows:
+        text = ocr_row_text(row)
+        if numeric_table_row_like(text):
+            numeric_rows.append(row)
+            continue
+        flush_numeric_rows()
+    flush_numeric_rows()
+    return records
+
+
 def export_region_images(
     page: fitz.Page,
     regions: list[Region],
@@ -935,6 +1186,122 @@ def rapidocr_text_for_image(ocr: Any, image_path: Path) -> tuple[str, float | No
         boxes.append({"box": box, "text": text, "confidence": confidence})
     confidence_value = sum(confidences) / len(confidences) if confidences else None
     return "\n".join(texts).strip(), confidence_value, boxes
+
+
+def rapidocr_records_for_image(image_path: Path, dpi: int) -> list[dict[str, Any]]:
+    from rapidocr_onnxruntime import RapidOCR
+
+    result, _elapsed = RapidOCR()(str(image_path))
+    if result is None:
+        return []
+    scale = 72.0 / float(dpi)
+    records: list[dict[str, Any]] = []
+    for index, item in enumerate(result, start=1):
+        if len(item) < 3:
+            continue
+        box, text, confidence = item[0], str(item[1]).strip(), float(item[2])
+        if not text:
+            continue
+        xs = [float(point[0]) for point in box]
+        ys = [float(point[1]) for point in box]
+        bbox_points = [
+            min(xs) * scale,
+            min(ys) * scale,
+            max(xs) * scale,
+            max(ys) * scale,
+        ]
+        records.append({
+            "region_id": f"ocr_{index:04d}",
+            "engine": "rapidocr_onnxruntime",
+            "fallback": False,
+            "fallback_reason": None,
+            "confidence": confidence,
+            "boxes": [{"box": box, "text": text, "confidence": confidence}],
+            "text": text,
+            "bbox_points": [round(value, 3) for value in bbox_points],
+        })
+    return records
+
+
+def write_ocr_editable_overlay_svg(
+    path: Path,
+    page: fitz.Page,
+    page_id: str,
+    render_record: dict[str, Any],
+    ocr_records: list[dict[str, Any]],
+) -> None:
+    svg_ns = "{http://www.w3.org/2000/svg}"
+    inkscape_ns = "{http://www.inkscape.org/namespaces/inkscape}"
+    xlink_ns = "{http://www.w3.org/1999/xlink}"
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+    ET.register_namespace("inkscape", "http://www.inkscape.org/namespaces/inkscape")
+
+    page_width = float(page.rect.width)
+    page_height = float(page.rect.height)
+    root = ET.Element(
+        f"{svg_ns}svg",
+        {
+            "version": "1.1",
+            "width": f"{page_width:g}",
+            "height": f"{page_height:g}",
+            "viewBox": f"0 0 {page_width:g} {page_height:g}",
+        },
+    )
+    image_layer = ET.SubElement(
+        root,
+        f"{svg_ns}g",
+        {
+            f"{inkscape_ns}groupmode": "layer",
+            f"{inkscape_ns}label": "visible_source_render_fidelity",
+            "id": "visible_source_render_fidelity",
+        },
+    )
+    image_data = base64.b64encode(Path(render_record["page_png"]).read_bytes()).decode("ascii")
+    ET.SubElement(
+        image_layer,
+        f"{svg_ns}image",
+        {
+            "id": "source_page_render",
+            "x": "0",
+            "y": "0",
+            "width": f"{page_width:g}",
+            "height": f"{page_height:g}",
+            f"{xlink_ns}href": f"data:image/png;base64,{image_data}",
+        },
+    )
+    text_layer = ET.SubElement(
+        root,
+        f"{svg_ns}g",
+        {
+            f"{inkscape_ns}groupmode": "layer",
+            f"{inkscape_ns}label": "ocr_editable_text_overlay",
+            "id": "single_editable_layer",
+            "data-pdfrejuvenator-layer-role": "ocr_editable_text_overlay",
+        },
+    )
+    for index, record in enumerate(ocr_records, start=1):
+        left, top, _right, bottom = [float(value) for value in record["bbox_points"]]
+        height = max(3.0, bottom - top)
+        font_size = max(4.0, min(18.0, height * 0.78))
+        baseline = top + height * 0.82
+        text = ET.SubElement(
+            text_layer,
+            f"{svg_ns}text",
+            {
+                "id": f"{page_id}_ocr_{index:04d}",
+                "x": f"{left:.3f}",
+                "y": f"{baseline:.3f}",
+                "font-family": "Times New Roman",
+                "font-size": f"{font_size:.3f}",
+                "fill": "#000000",
+                "fill-opacity": "0.82",
+                "data-confidence": f"{float(record.get('confidence') or 0.0):.4f}",
+            },
+        )
+        text.text = str(record.get("text", ""))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
 
 def rtf_escape(text: str) -> str:
@@ -1013,11 +1380,40 @@ def rich_text_rtf(region_records: list[dict[str, Any]]) -> str:
     return "{\\rtf1\\ansi\\deff0\\uc1\n" + font_table + "\n" + color_table + "\n" + "".join(body) + "}\n"
 
 
-def run_ocr(region_records: list[dict[str, Any]], ocr_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
+def run_ocr(
+    region_records: list[dict[str, Any]],
+    ocr_dir: Path,
+    config: dict[str, Any],
+    page_ocr_records: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     ocr_dir.mkdir(parents=True, exist_ok=True)
     ocr_config = config.get("ocr", {})
     preferred = ocr_config.get("preferred_engine", "pymupdf_text_blocks")
     allow_fallback = bool(ocr_config.get("allow_fallback", True))
+    if page_ocr_records is not None:
+        text_lines = [
+            f"## {record['region_id']}\n\n{record.get('text', '')}\n"
+            for record in page_ocr_records
+        ]
+        ocr_json = ocr_dir / "ocr_regions.json"
+        ocr_text = ocr_dir / "ocr_regions.txt"
+        ocr_rtf = ocr_dir / "ocr_regions.rtf"
+        write_json(ocr_json, {
+            "engine": "rapidocr_onnxruntime",
+            "preferred_engine": preferred,
+            "allow_fallback": allow_fallback,
+            "fallback_reason": None,
+            "records": page_ocr_records,
+        })
+        write_text(ocr_text, "\n".join(text_lines))
+        write_text(ocr_rtf, "{\\rtf1\\ansi\\deff0\n" + "\n".join(rtf_escape(line) + "\\par" for line in text_lines) + "\n}\n")
+        return {
+            "ocr_json": ocr_json,
+            "ocr_text": ocr_text,
+            "ocr_rtf": ocr_rtf,
+            "records": page_ocr_records,
+            "engine": "rapidocr_onnxruntime",
+        }
     rapidocr = None
     engine = "pymupdf_text_blocks"
     fallback_reason = None
@@ -1635,8 +2031,31 @@ def run_pipeline(config_path: Path, clean: bool = False) -> dict[str, Any]:
     )
     mark_underlined_spans(page, regions)
     region_records = export_region_images(page, regions, dpi, threshold, output_root / "textbox_regions")
+    page_ocr_records = None
+    ocr_config = config.get("ocr", {})
+    if (
+        not region_records
+        and ocr_config.get("preferred_engine") == "rapidocr"
+        and bool(ocr_config.get("image_only_fallback", True))
+    ):
+        page_ocr_records = rapidocr_records_for_image(Path(render_record["page_png"]), dpi)
+        if page_ocr_records:
+            for index, record in enumerate(page_ocr_records, start=1):
+                record["region_id"] = f"{page_id}_ocr_{index:04d}"
+            ocr_overlay_svg = output_root / "inkscape" / f"{page_id}_ocr_editable_overlay.svg"
+            write_ocr_editable_overlay_svg(ocr_overlay_svg, page, page_id, render_record, page_ocr_records)
+            svg_record["ocr_editable_overlay_svg"] = ocr_overlay_svg
+            svg_record["single_editable_layer_svg"] = ocr_overlay_svg
+            svg_record["editable_text_count"] = len(page_ocr_records)
     table_records = export_table_csvs(page, page_id, output_root / "tables", config)
-    ocr_record = run_ocr(region_records, output_root / "ocr", config)
+    table_records.extend(export_ocr_table_csvs(
+        page_ocr_records,
+        page_id,
+        output_root / "tables",
+        config,
+        existing_count=len(table_records),
+    ))
+    ocr_record = run_ocr(region_records, output_root / "ocr", config, page_ocr_records)
 
     rebuild_dir = output_root / "rebuilt"
     html_path = rebuild_dir / f"{page_id}.html"

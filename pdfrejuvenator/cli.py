@@ -49,6 +49,8 @@ def run_process(args: argparse.Namespace) -> int:
         command.append("--skip-search-index")
     if args.validation_mode:
         command.extend(["--validation-mode", args.validation_mode])
+    if args.ocr_engine:
+        command.extend(["--ocr-engine", args.ocr_engine])
 
     return subprocess.run(command, cwd=ROOT).returncode
 
@@ -95,6 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
     process.add_argument("--skip-consolidated-output", action="store_true", help="Advanced: do not build clean user-facing output.")
     process.add_argument("--skip-search-index", action="store_true", help="Advanced: do not build the local _search index.")
     process.add_argument("--validation-mode", choices=["internal", "external"], default="internal", help="Internal fails hard; external keeps output and writes validation reports.")
+    process.add_argument("--ocr-engine", choices=["pymupdf_text_blocks", "rapidocr"], default=None, help="Advanced: OCR engine for image-only or scanned PDFs.")
     process.set_defaults(func=run_process)
 
     search = subparsers.add_parser(

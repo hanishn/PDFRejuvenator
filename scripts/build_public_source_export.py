@@ -83,6 +83,20 @@ def copy_tree(source: Path, target: Path) -> None:
     shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
 
 
+def copy_samples(source: Path, target: Path) -> None:
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(
+        source,
+        target,
+        ignore=shutil.ignore_patterns(
+            "__pycache__",
+            "*.pyc",
+            "*_pdfrejuvenator_output",
+        ),
+    )
+
+
 def copy_files(source_dir: Path, target_dir: Path, names: list[str]) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
     for name in names:
@@ -104,7 +118,7 @@ def build_export(output_dir: Path, clean: bool) -> Path:
     copy_files(ROOT, output_dir, ROOT_FILES)
     copy_files(ROOT / "docs", output_dir / "docs", DOC_FILES)
     copy_files(ROOT / "requirements", output_dir / "requirements", REQUIREMENT_FILES)
-    copy_tree(ROOT / "samples", output_dir / "samples")
+    copy_samples(ROOT / "samples", output_dir / "samples")
 
     (output_dir / "configs").mkdir(exist_ok=True)
     (output_dir / ".gitignore").write_text(GITIGNORE, encoding="utf-8")

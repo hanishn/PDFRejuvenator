@@ -43,7 +43,7 @@ def build_dashboard(output_dir: Path, rows: list[dict[str, str]]) -> str:
       <article class="card" data-status="{status}">
         <header><strong>Page {page}</strong><span>{status}</span></header>
         <a href="{preview}"><img src="{preview}" alt="Page {page} preview"></a>
-        <nav><a href="{svg}">Edit SVG</a><a href="{preview}">Preview PNG</a></nav>
+        <nav><a class="primary" href="{svg}">Open editable SVG</a><a href="{preview}">Preview PNG</a></nav>
       </article>"""
         )
     return f"""<!doctype html>
@@ -60,12 +60,13 @@ h1 {{ margin: 0 0 8px; font-size: 24px; }}
 .card header {{ display: flex; justify-content: space-between; margin-bottom: 8px; }}
 .card img {{ display: block; width: 100%; border: 1px solid #ddd; background: #eee; }}
 .card nav {{ display: flex; gap: 10px; margin-top: 8px; font-size: 13px; }}
+.card nav .primary {{ font-weight: 700; }}
 a {{ color: #064f8a; }}
 </style>
 </head>
 <body>
 <h1>PDFRejuvenator Review Output</h1>
-<div class="meta">{len(rows)} pages. Open the `page_###_edit_this_page.svg` file for the page you want to edit.</div>
+<div class="meta">{len(rows)} pages. The file named <code>page_###_edit_this_page.svg</code> is the one to edit. Preview PNG files are only for checking the page visually.</div>
 <section class="grid">
 {''.join(cards)}
 </section>
@@ -76,6 +77,30 @@ a {{ color: #064f8a; }}
 
 def write_manifest(output_dir: Path, rows: list[dict[str, str]]) -> None:
     path = output_dir / "manifest.csv"
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "page",
+                "status",
+                "editable_svg",
+                "preview_png",
+            ],
+        )
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(
+                {
+                    "page": row["page"],
+                    "status": row["status"],
+                    "editable_svg": row["editable_svg"],
+                    "preview_png": row["preview_png"],
+                }
+            )
+
+
+def write_debug_manifest(debug_dir: Path, rows: list[dict[str, str]]) -> None:
+    path = debug_dir / "debug_manifest.csv"
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
@@ -97,7 +122,7 @@ def write_readme(output_dir: Path, source_pdf: Path, rows: list[dict[str, str]],
     lines = [
         "# PDFRejuvenator Review Output",
         "",
-        f"Source PDF: `{source_pdf}`",
+        f"Source PDF: `{source_pdf.name}`",
         f"Pages: `{len(rows)}`",
         "",
         "Open first:",
@@ -118,13 +143,19 @@ def write_readme(output_dir: Path, source_pdf: Path, rows: list[dict[str, str]],
         "pages\\page_###_preview.png",
         "```",
         "",
+        "The SVG file is the one to edit. The PNG file is only a preview/check image.",
+        "",
         "Internal/debug artifacts are not part of the normal review flow. The internal run root is recorded in:",
         "",
         "```text",
         "_debug\\INTERNAL_RUN_ROOT.txt",
         "```",
         "",
-        f"Internal run root: `{run_root}`",
+        "Detailed internal source artifact paths are recorded in:",
+        "",
+        "```text",
+        "_debug\\debug_manifest.csv",
+        "```",
     ]
     (output_dir / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -175,8 +206,10 @@ def main() -> int:
 
     (output_dir / "dashboard.html").write_text(build_dashboard(output_dir, rows), encoding="utf-8")
     write_manifest(output_dir, rows)
+    write_debug_manifest(debug_dir, rows)
     write_readme(output_dir, source_pdf, rows, run_root)
     (debug_dir / "INTERNAL_RUN_ROOT.txt").write_text(str(run_root) + "\n", encoding="utf-8")
+    (debug_dir / "SOURCE_PDF.txt").write_text(str(source_pdf) + "\n", encoding="utf-8")
     (debug_dir / "ROLLOUT_REPORT.txt").write_text(str(rollout_report_path) + "\n", encoding="utf-8")
 
     print(f"CONSOLIDATED_OUTPUT={output_dir}")

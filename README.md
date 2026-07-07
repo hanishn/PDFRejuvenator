@@ -50,13 +50,15 @@ pages\page_###_preview.png
 
 Debug pointers and internal run paths are under `_debug\`. Local search data is under `_search\`.
 
+The main `manifest.csv` is user-facing. Internal source artifact paths are kept in `_debug\debug_manifest.csv`.
+
 ## Search
 
 ```powershell
 python -m pdfrejuvenator search "search terms" --output-dir "G:\path\to\source_pdfrejuvenator_output"
 ```
 
-The `_search` index contains extracted text and metadata from the source PDF. Treat it as local/private data unless the source PDF and extracted text are cleared for sharing.
+The `_search` index contains extracted text, OCR text for image-only pages, and metadata from the source PDF. Treat it as local/private data unless the source PDF and extracted text are cleared for sharing.
 
 ## Validation
 

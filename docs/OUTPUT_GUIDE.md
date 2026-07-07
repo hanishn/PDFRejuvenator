@@ -40,6 +40,12 @@ manifest.csv
 
 It records each page, output status, editable SVG path, preview PNG path, validation status, and validation errors if any.
 
+The normal manifest is intentionally user-facing. Internal source artifact paths are stored separately:
+
+```text
+_debug\debug_manifest.csv
+```
+
 ## Search Data
 
 Local search data is stored separately from review files:
@@ -49,7 +55,7 @@ _search\search_index.jsonl
 _search\search_manifest.json
 ```
 
-The search index contains extracted text and page/image/table metadata from the source PDF. Treat it as local/private data unless the source PDF and extracted text are cleared for sharing.
+The search index contains extracted text, OCR text for image-only pages, and page/image/table metadata from the source PDF. Treat it as local/private data unless the source PDF and extracted text are cleared for sharing.
 
 Search command:
 
