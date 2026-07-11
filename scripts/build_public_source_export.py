@@ -23,7 +23,13 @@ SCRIPT_ALLOWLIST = [
     "search_local_index.py",
     "generate_public_sample_pdf.py",
     "validate_consolidated_review_output.py",
+    "validate_corpus_intake.py",
+    "validate_corpus_search.py",
+    "validate_ocr_records.py",
+    "validate_ocr_search.py",
     "validate_pdfrejuvenator.py",
+    "validate_private_workspace.py",
+    "validate_table_records.py",
 ]
 
 ROOT_FILES = [
@@ -38,9 +44,14 @@ ROOT_FILES = [
 ]
 
 DOC_FILES = [
+    "CORPUS_INTAKE_ARCHITECTURE.md",
     "GITHUB_PUBLICATION_CHECKLIST.md",
     "OUTPUT_GUIDE.md",
+    "PRIVATE_OCR_RECORDS.md",
+    "PRIVATE_TABLE_RECORDS.md",
+    "PRIVATE_WORKSPACE_ARCHITECTURE.md",
     "PUBLICATION_GUIDE.md",
+    "SEARCHABILITY_VALIDATION_PLAN.md",
     "VALIDATION_GUIDE.md",
 ]
 

@@ -97,6 +97,60 @@ python -m pdfrejuvenator index-table-records ".\synthetic_table_records.json" --
 python -m pdfrejuvenator index-image-records ".\synthetic_image_records.json" --output ".\synthetic_image_index.jsonl"
 ```
 
+## v0.5 Private Workspace
+
+The v0.5 private workspace layer creates a local processing boundary for private scanned-document corpora and derived artifacts.
+
+Initialize a private workspace outside the public repository:
+
+```powershell
+python -m pdfrejuvenator init-private-workspace "G:\PrivateCorpus\PDFRejuvenator" --corpus-id private-corpus
+```
+
+Validate the private workspace boundary:
+
+```powershell
+python -m pdfrejuvenator validate-private-workspace "G:\PrivateCorpus\PDFRejuvenator" --public-repo-root "."
+```
+
+Run the private workspace validator:
+
+```powershell
+python scripts\validate_private_workspace.py
+```
+
+Private workspace artifacts are local/private by default and are not public release artifacts.
+
+Extract page-level OCR records into a private workspace:
+
+```powershell
+python -m pdfrejuvenator extract-ocr-records ".\local_inventory_manifest.json" --source-root ".\samples" --private-workspace-root "G:\PrivateCorpus\PDFRejuvenator" --output "G:\PrivateCorpus\PDFRejuvenator\derived\ocr\ocr_records.json"
+```
+
+Run the OCR records validator:
+
+```powershell
+python scripts\validate_ocr_records.py
+```
+
+Build a private OCR search index:
+
+```powershell
+python -m pdfrejuvenator index-ocr-records "G:\PrivateCorpus\PDFRejuvenator\derived\ocr\ocr_records.json" --output "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_index.jsonl"
+```
+
+Run the OCR search validator:
+
+```powershell
+python scripts\validate_ocr_search.py
+```
+
+Run the v0.5 table records validator:
+
+```powershell
+python scripts\validate_table_records.py
+```
+
 ## Validation
 
 Project validation:
@@ -160,6 +214,9 @@ This public version is open source. Future commercial products or hosted service
 - `README_COMMAND_LINE_HANDOFF.md`
 - `docs\GITHUB_PUBLICATION_CHECKLIST.md`
 - `docs\CORPUS_INTAKE_ARCHITECTURE.md`
+- `docs\PRIVATE_OCR_RECORDS.md`
+- `docs\PRIVATE_TABLE_RECORDS.md`
+- `docs\PRIVATE_WORKSPACE_ARCHITECTURE.md`
 - `docs\OUTPUT_GUIDE.md`
 - `docs\PUBLICATION_GUIDE.md`
 - `docs\VALIDATION_GUIDE.md`

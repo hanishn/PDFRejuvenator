@@ -23,7 +23,13 @@ SCRIPT_ALLOWLIST = [
     "search_local_index.py",
     "generate_public_sample_pdf.py",
     "validate_consolidated_review_output.py",
+    "validate_corpus_intake.py",
+    "validate_corpus_search.py",
+    "validate_ocr_records.py",
+    "validate_ocr_search.py",
     "validate_pdfrejuvenator.py",
+    "validate_private_workspace.py",
+    "validate_table_records.py",
 ]
 
 ROOT_FILES = [
@@ -38,7 +44,12 @@ ROOT_FILES = [
 ]
 
 DOC_FILES = [
+    "CORPUS_INTAKE_ARCHITECTURE.md",
     "OUTPUT_GUIDE.md",
+    "PRIVATE_OCR_RECORDS.md",
+    "PRIVATE_TABLE_RECORDS.md",
+    "PRIVATE_WORKSPACE_ARCHITECTURE.md",
+    "SEARCHABILITY_VALIDATION_PLAN.md",
     "VALIDATION_GUIDE.md",
 ]
 
@@ -51,6 +62,20 @@ def copy_tree(source: Path, target: Path) -> None:
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+
+
+def copy_samples(source: Path, target: Path) -> None:
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(
+        source,
+        target,
+        ignore=shutil.ignore_patterns(
+            "__pycache__",
+            "*.pyc",
+            "*_pdfrejuvenator_output",
+        ),
+    )
 
 
 def copy_files(source_dir: Path, target_dir: Path, names: list[str]) -> None:
@@ -73,6 +98,7 @@ def build_package(output_dir: Path, source_pdfs: list[Path], clean: bool) -> Pat
     copy_files(ROOT, output_dir, ROOT_FILES)
     copy_files(ROOT / "docs", output_dir / "docs", DOC_FILES)
     copy_files(ROOT / "requirements", output_dir / "requirements", REQUIREMENT_FILES)
+    copy_samples(ROOT / "samples", output_dir / "samples")
 
     (output_dir / "configs").mkdir(exist_ok=True)
     source_dir = output_dir / "source_pdfs"
@@ -96,7 +122,7 @@ def main() -> int:
 
     if args.output_dir is None:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = ROOT / "outputs" / "delivery_packages" / f"PDFRejuvenator_v0.3_{stamp}"
+        output_dir = ROOT / "outputs" / "delivery_packages" / f"PDFRejuvenator_v0.4_{stamp}"
     else:
         output_dir = args.output_dir.resolve()
 

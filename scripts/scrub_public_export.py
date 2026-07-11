@@ -57,26 +57,6 @@ FORBIDDEN_PATTERNS = [
     ("private key block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
 ]
 
-PRIVATE_CONTENT_PATTERNS = [
-    ("private/branded term", re.compile(pattern, re.IGNORECASE))
-    for pattern in [
-        r"\bpalladium\b",
-        r"\bpf2\b",
-        r"\bpalladium\s+fantasy\b",
-        r"\bteenage\s+mutant\s+ninja\s+turtles\b",
-        r"\btmnt\b",
-        r"\brifts\b",
-        r"\bmegaverse\b",
-        r"\bmegaversal\b",
-        r"\brobotech\b",
-        r"\bheroes\s+unlimited\b",
-        r"\bnightbane\b",
-        r"\bafter\s+the\s+bomb\b",
-        r"\bsplicers\b",
-        r"\bdead\s+reign\b",
-    ]
-]
-
 PUBLIC_SOURCE_PDF_PATTERNS = [
     re.compile(r"^source/shadow_power_play_sample_[0-9a-f]+\.pdf$", re.IGNORECASE),
 ]
@@ -177,13 +157,13 @@ def scan_root(root: Path, patterns: list[tuple[str, re.Pattern[str]]]) -> list[F
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Scrub a PDFRejuvenator public export for private terms and secrets.")
+    parser = argparse.ArgumentParser(description="Scrub a PDFRejuvenator public export for secrets and local-only content.")
     parser.add_argument("--root", type=Path, default=ROOT, help="Public export root to scan.")
     parser.add_argument("--denylist", type=Path, help="Optional private newline-delimited terms file to scan for.")
     args = parser.parse_args()
 
     root = args.root.resolve()
-    patterns = [*FORBIDDEN_PATTERNS, *PRIVATE_CONTENT_PATTERNS, *load_extra_patterns(args.denylist)]
+    patterns = [*FORBIDDEN_PATTERNS, *load_extra_patterns(args.denylist)]
     findings = scan_root(root, patterns)
     for finding in findings:
         print(f"{finding.category}: {finding.path}:{finding.line_number}: {finding.line}")

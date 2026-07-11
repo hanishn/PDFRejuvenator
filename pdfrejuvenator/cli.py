@@ -15,8 +15,14 @@ from pdfrejuvenator.corpus_intake import (
 from pdfrejuvenator.corpus_search import (
     build_index_from_image_records,
     build_index_from_manifest,
+    build_index_from_ocr_records,
     build_index_from_table_records,
     build_index_from_text_records,
+)
+from pdfrejuvenator.ocr_records import build_ocr_records_from_manifest
+from pdfrejuvenator.private_workspace import (
+    init_private_workspace,
+    validate_private_workspace,
 )
 
 
@@ -159,6 +165,68 @@ def run_index_image_records(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_index_ocr_records(args: argparse.Namespace) -> int:
+    source = args.ocr_records.resolve()
+    if not source.exists():
+        print(f"ERROR: OCR records not found: {source}", file=sys.stderr)
+        return 2
+    output = args.output.resolve()
+    count = build_index_from_ocr_records(source, output)
+    print(f"OCR SEARCH INDEX: {output}")
+    print(f"OCR SEARCH SUMMARY: records={count} failures=0")
+    return 0
+
+
+def run_init_private_workspace(args: argparse.Namespace) -> int:
+    workspace_root = args.workspace_root.resolve()
+    config = init_private_workspace(workspace_root, corpus_id=args.corpus_id)
+    print(f"PRIVATE WORKSPACE: {config.workspace_root}")
+    print(f"PRIVATE WORKSPACE CONFIG: {workspace_root / 'pdfrejuvenator_private_workspace.json'}")
+    print("PRIVATE WORKSPACE SUMMARY: failures=0")
+    return 0
+
+
+def run_validate_private_workspace(args: argparse.Namespace) -> int:
+    workspace_root = args.workspace_root.resolve()
+    public_repo_root = args.public_repo_root.resolve() if args.public_repo_root else ROOT
+    issues = validate_private_workspace(workspace_root, public_repo_root=public_repo_root)
+    for issue in issues:
+        print(f"ERROR: {issue.path}: {issue.message}", file=sys.stderr)
+    print(f"PRIVATE WORKSPACE VALIDATION SUMMARY: issues={len(issues)} failures={len(issues)}")
+    return 1 if issues else 0
+
+
+def run_extract_ocr_records(args: argparse.Namespace) -> int:
+    manifest = args.manifest.resolve()
+    source_root = args.source_root.resolve()
+    private_workspace_root = args.private_workspace_root.resolve()
+    output = args.output.resolve()
+    if not manifest.exists():
+        print(f"ERROR: manifest not found: {manifest}", file=sys.stderr)
+        return 2
+    if not source_root.exists() or not source_root.is_dir():
+        print(f"ERROR: source root not found or not a directory: {source_root}", file=sys.stderr)
+        return 2
+    issues = validate_private_workspace(private_workspace_root, public_repo_root=ROOT)
+    if issues:
+        for issue in issues:
+            print(f"ERROR: {issue.path}: {issue.message}", file=sys.stderr)
+        return 1
+    try:
+        count = build_ocr_records_from_manifest(
+            manifest,
+            source_root=source_root,
+            private_workspace_root=private_workspace_root,
+            output=output,
+        )
+    except (KeyError, ValueError, FileNotFoundError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"OCR RECORDS: {output}")
+    print(f"OCR RECORDS SUMMARY: records={count} failures=0")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pdfrejuvenator",
@@ -256,6 +324,44 @@ def build_parser() -> argparse.ArgumentParser:
     index_image.add_argument("image_records", type=Path, help="Synthetic/public-safe image records JSON.")
     index_image.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
     index_image.set_defaults(func=run_index_image_records)
+
+    index_ocr = subparsers.add_parser(
+        "index-ocr-records",
+        help="build a local search index from private OCR records",
+        description="Build a local JSONL search index from private OCR records.",
+    )
+    index_ocr.add_argument("ocr_records", type=Path, help="Private OCR records JSON.")
+    index_ocr.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
+    index_ocr.set_defaults(func=run_index_ocr_records)
+
+    init_private = subparsers.add_parser(
+        "init-private-workspace",
+        help="initialize a private local processing workspace",
+        description="Create a private local workspace layout for non-public corpus processing artifacts.",
+    )
+    init_private.add_argument("workspace_root", type=Path, help="Private workspace root outside the public repo.")
+    init_private.add_argument("--corpus-id", default="private-corpus", help="Stable private corpus identifier.")
+    init_private.set_defaults(func=run_init_private_workspace)
+
+    validate_private = subparsers.add_parser(
+        "validate-private-workspace",
+        help="validate a private local processing workspace",
+        description="Validate the private workspace layout and public/private separation controls.",
+    )
+    validate_private.add_argument("workspace_root", type=Path, help="Private workspace root to validate.")
+    validate_private.add_argument("--public-repo-root", type=Path, default=ROOT, help="Public repository root for separation checks.")
+    validate_private.set_defaults(func=run_validate_private_workspace)
+
+    extract_ocr = subparsers.add_parser(
+        "extract-ocr-records",
+        help="extract page-level OCR records into a private workspace",
+        description="Extract page-level OCR text records from an intake manifest into a validated private workspace.",
+    )
+    extract_ocr.add_argument("manifest", type=Path, help="Intake manifest JSON.")
+    extract_ocr.add_argument("--source-root", type=Path, required=True, help="Root used to resolve manifest source_path values.")
+    extract_ocr.add_argument("--private-workspace-root", type=Path, required=True, help="Validated private workspace root.")
+    extract_ocr.add_argument("--output", type=Path, required=True, help="Private workspace OCR records JSON output.")
+    extract_ocr.set_defaults(func=run_extract_ocr_records)
 
     return parser
 

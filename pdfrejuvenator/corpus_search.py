@@ -9,6 +9,8 @@ SEARCH_SCHEMA_VERSION = "pdfrejuvenator.corpus_search.v0.4"
 TEXT_RECORD_SCHEMA_VERSION = "pdfrejuvenator.text_record.v0.4"
 TABLE_RECORD_SCHEMA_VERSION = "pdfrejuvenator.table_record.v0.4"
 IMAGE_RECORD_SCHEMA_VERSION = "pdfrejuvenator.image_record.v0.4"
+OCR_RECORD_SEARCH_SCHEMA_VERSION = "pdfrejuvenator.ocr_record_search.v0.5"
+TABLE_RECORD_SEARCH_SCHEMA_VERSION = "pdfrejuvenator.table_record_search.v0.5"
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -92,19 +94,20 @@ def table_entries_to_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
         book_id = str(entry.get("book_id", ""))
-        page = int(entry.get("page", 0) or 0)
+        page = int(entry.get("page", entry.get("page_number", 0)) or 0)
         table_id = str(entry.get("table_id", "table"))
         cells = entry.get("cells", [])
         cell_text = " ".join(str(cell) for row in cells if isinstance(row, list) for cell in row)
         text = " ".join(str(part) for part in [entry.get("caption", ""), table_id, cell_text] if part)
+        source_schema = TABLE_RECORD_SEARCH_SCHEMA_VERSION if entry.get("schema_version") == "0.5.0-table-records-v1" else TABLE_RECORD_SCHEMA_VERSION
         records.append(
             {
                 "schema_version": SEARCH_SCHEMA_VERSION,
-                "source_schema_version": TABLE_RECORD_SCHEMA_VERSION,
+                "source_schema_version": source_schema,
                 "record_id": str(entry.get("record_id") or "::".join([batch_id, book_id, f"p{page:03d}", table_id])),
                 "batch_id": batch_id,
                 "book_id": book_id,
-                "record_type": "synthetic_table",
+                "record_type": "private_table" if source_schema == TABLE_RECORD_SEARCH_SCHEMA_VERSION else "synthetic_table",
                 "text": text,
                 "page": page,
                 "artifact_path": str(entry.get("artifact_path", "")),
@@ -113,7 +116,10 @@ def table_entries_to_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     "caption": entry.get("caption", ""),
                     "row_count": len(cells) if isinstance(cells, list) else 0,
                     "column_count": max((len(row) for row in cells if isinstance(row, list)), default=0),
-                    "source": entry.get("source", "synthetic_fixture"),
+                    "source": entry.get("source", entry.get("extraction_method", "synthetic_fixture")),
+                    "confidence": entry.get("confidence"),
+                    "source_sha256": entry.get("source_sha256", ""),
+                    "privacy_scope": "private_local_only" if source_schema == TABLE_RECORD_SEARCH_SCHEMA_VERSION else "public_safe_fixture",
                 },
             }
         )
@@ -163,6 +169,41 @@ def image_entries_to_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
+def ocr_entries_to_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for entry in payload.get("records", []):
+        if not isinstance(entry, dict):
+            continue
+        corpus_id = str(entry.get("corpus_id", ""))
+        book_id = str(entry.get("book_id", ""))
+        page = int(entry.get("page_number", 0) or 0)
+        text_sha = str(entry.get("text_sha256", ""))
+        record_id = "::".join(part for part in [corpus_id, book_id, f"p{page:05d}", text_sha[:12], "ocr"] if part)
+        records.append(
+            {
+                "schema_version": SEARCH_SCHEMA_VERSION,
+                "source_schema_version": OCR_RECORD_SEARCH_SCHEMA_VERSION,
+                "record_id": record_id,
+                "batch_id": corpus_id,
+                "book_id": book_id,
+                "record_type": "private_ocr_page",
+                "text": str(entry.get("text", "")),
+                "page": page,
+                "artifact_path": "",
+                "metadata": {
+                    "corpus_id": corpus_id,
+                    "source_sha256": entry.get("source_sha256", ""),
+                    "text_sha256": text_sha,
+                    "char_count": entry.get("char_count"),
+                    "confidence": entry.get("confidence"),
+                    "extraction_method": entry.get("extraction_method", ""),
+                    "privacy_scope": "private_local_only",
+                },
+            }
+        )
+    return records
+
+
 def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [json.dumps(record, sort_keys=True) for record in records]
@@ -193,5 +234,12 @@ def build_index_from_table_records(table_records_path: Path, output_path: Path) 
 def build_index_from_image_records(image_records_path: Path, output_path: Path) -> int:
     payload = json.loads(image_records_path.read_text(encoding="utf-8"))
     records = image_entries_to_records(payload)
+    write_jsonl(output_path, records)
+    return len(records)
+
+
+def build_index_from_ocr_records(ocr_records_path: Path, output_path: Path) -> int:
+    payload = json.loads(ocr_records_path.read_text(encoding="utf-8"))
+    records = ocr_entries_to_records(payload)
     write_jsonl(output_path, records)
     return len(records)

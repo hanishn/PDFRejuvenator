@@ -31,6 +31,10 @@ CORE_SCRIPT_IMPORTS = [
     "validate_consolidated_review_output",
     "validate_corpus_intake",
     "validate_corpus_search",
+    "validate_ocr_records",
+    "validate_ocr_search",
+    "validate_private_workspace",
+    "validate_table_records",
 ]
 
 REQUIRED_RUNTIME_MODULES = [
@@ -205,6 +209,50 @@ def check_corpus_search_validation() -> list[CheckResult]:
     ]
 
 
+def check_private_workspace_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_private_workspace import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"private workspace {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_ocr_records_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_ocr_records import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"ocr records {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_ocr_search_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_ocr_search import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"ocr search {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_table_records_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_table_records import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"table records {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
 def print_results(results: list[CheckResult], verbose: bool) -> None:
     for result in results:
         if result.status == "PASS" and not verbose:
@@ -231,6 +279,10 @@ def main() -> int:
     results.extend(check_page_selection_helpers())
     results.extend(check_corpus_intake_validation())
     results.extend(check_corpus_search_validation())
+    results.extend(check_private_workspace_validation())
+    results.extend(check_ocr_records_validation())
+    results.extend(check_ocr_search_validation())
+    results.extend(check_table_records_validation())
 
     failures = [result for result in results if result.status == "FAIL"]
     warnings = [result for result in results if result.status == "WARN"]
