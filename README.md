@@ -60,6 +60,43 @@ python -m pdfrejuvenator search "search terms" --output-dir "G:\path\to\source_p
 
 The `_search` index contains extracted text, OCR text for image-only pages, and metadata from the source PDF. Treat it as local/private data unless the source PDF and extracted text are cleared for sharing.
 
+## v0.4 Corpus Intake
+
+The v0.4 intake layer adds schema and validation primitives for private large-book corpus registration before extraction or indexing starts.
+
+Run the intake validator:
+
+```powershell
+python scripts\validate_corpus_intake.py
+```
+
+The intake layer records source metadata, hash evidence, privacy class, rights class, processing intent, and batch state. Private OCR, embeddings, and public release actions require separate approval gates.
+
+Create an inventory-only manifest:
+
+```powershell
+python -m pdfrejuvenator inventory ".\samples" --output ".\local_inventory_manifest.json" --privacy-class public_sample --rights-class original
+```
+
+Build a metadata-only search index from a manifest:
+
+```powershell
+python -m pdfrejuvenator index-manifest ".\local_inventory_manifest.json" --output ".\local_inventory_index.jsonl"
+```
+
+Build a text search index from synthetic or separately approved text records:
+
+```powershell
+python -m pdfrejuvenator index-text-records ".\synthetic_text_records.json" --output ".\synthetic_text_index.jsonl"
+```
+
+Build table and image metadata indexes from synthetic or separately approved records:
+
+```powershell
+python -m pdfrejuvenator index-table-records ".\synthetic_table_records.json" --output ".\synthetic_table_index.jsonl"
+python -m pdfrejuvenator index-image-records ".\synthetic_image_records.json" --output ".\synthetic_image_index.jsonl"
+```
+
 ## Validation
 
 Project validation:
@@ -122,6 +159,7 @@ This public version is open source. Future commercial products or hosted service
 
 - `README_COMMAND_LINE_HANDOFF.md`
 - `docs\GITHUB_PUBLICATION_CHECKLIST.md`
+- `docs\CORPUS_INTAKE_ARCHITECTURE.md`
 - `docs\OUTPUT_GUIDE.md`
 - `docs\PUBLICATION_GUIDE.md`
 - `docs\VALIDATION_GUIDE.md`

@@ -5,6 +5,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+from pdfrejuvenator.corpus_intake import (
+    PrivacyClass,
+    RightsClass,
+    build_inventory_manifest,
+    manifest_to_json,
+    validate_manifest,
+)
+from pdfrejuvenator.corpus_search import (
+    build_index_from_image_records,
+    build_index_from_manifest,
+    build_index_from_table_records,
+    build_index_from_text_records,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -70,6 +84,81 @@ def run_search(args: argparse.Namespace) -> int:
     return subprocess.run(command, cwd=ROOT).returncode
 
 
+def run_inventory(args: argparse.Namespace) -> int:
+    source_root = args.source_root.resolve()
+    if not source_root.exists() or not source_root.is_dir():
+        print(f"ERROR: source root not found or not a directory: {source_root}", file=sys.stderr)
+        return 2
+
+    manifest = build_inventory_manifest(
+        source_root,
+        corpus_id=args.corpus_id,
+        batch_id=args.batch_id,
+        privacy_class=PrivacyClass(args.privacy_class),
+        rights_class=RightsClass(args.rights_class),
+    )
+    issues = validate_manifest(manifest)
+    if issues:
+        for issue in issues:
+            print(f"ERROR: {issue.path}: {issue.message}", file=sys.stderr)
+        return 1
+
+    output = args.output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(manifest_to_json(manifest), encoding="utf-8")
+    print(f"INVENTORY MANIFEST: {output}")
+    print(f"INVENTORY SUMMARY: entries={len(manifest.entries)} failures=0")
+    return 0
+
+
+def run_index_manifest(args: argparse.Namespace) -> int:
+    manifest = args.manifest.resolve()
+    if not manifest.exists():
+        print(f"ERROR: manifest not found: {manifest}", file=sys.stderr)
+        return 2
+    output = args.output.resolve()
+    count = build_index_from_manifest(manifest, output)
+    print(f"CORPUS SEARCH INDEX: {output}")
+    print(f"CORPUS SEARCH SUMMARY: records={count} failures=0")
+    return 0
+
+
+def run_index_text_records(args: argparse.Namespace) -> int:
+    source = args.text_records.resolve()
+    if not source.exists():
+        print(f"ERROR: text records not found: {source}", file=sys.stderr)
+        return 2
+    output = args.output.resolve()
+    count = build_index_from_text_records(source, output)
+    print(f"TEXT SEARCH INDEX: {output}")
+    print(f"TEXT SEARCH SUMMARY: records={count} failures=0")
+    return 0
+
+
+def run_index_table_records(args: argparse.Namespace) -> int:
+    source = args.table_records.resolve()
+    if not source.exists():
+        print(f"ERROR: table records not found: {source}", file=sys.stderr)
+        return 2
+    output = args.output.resolve()
+    count = build_index_from_table_records(source, output)
+    print(f"TABLE SEARCH INDEX: {output}")
+    print(f"TABLE SEARCH SUMMARY: records={count} failures=0")
+    return 0
+
+
+def run_index_image_records(args: argparse.Namespace) -> int:
+    source = args.image_records.resolve()
+    if not source.exists():
+        print(f"ERROR: image records not found: {source}", file=sys.stderr)
+        return 2
+    output = args.output.resolve()
+    count = build_index_from_image_records(source, output)
+    print(f"IMAGE SEARCH INDEX: {output}")
+    print(f"IMAGE SEARCH SUMMARY: records={count} failures=0")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pdfrejuvenator",
@@ -110,6 +199,63 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--index", type=Path, default=None, help="Explicit search_index.jsonl path.")
     search.add_argument("--limit", type=int, default=10)
     search.set_defaults(func=run_search)
+
+    inventory = subparsers.add_parser(
+        "inventory",
+        help="create an inventory-only corpus intake manifest",
+        description="Scan a source root for PDFs and write a v0.4 inventory-only manifest.",
+    )
+    inventory.add_argument("source_root", type=Path, help="Directory containing source PDFs.")
+    inventory.add_argument("--output", type=Path, required=True, help="Manifest JSON output path.")
+    inventory.add_argument("--corpus-id", default="local-corpus", help="Stable corpus identifier.")
+    inventory.add_argument("--batch-id", default="inventory-batch", help="Stable batch identifier.")
+    inventory.add_argument(
+        "--privacy-class",
+        choices=[item.value for item in PrivacyClass],
+        default=PrivacyClass.PRIVATE_SOURCE.value,
+    )
+    inventory.add_argument(
+        "--rights-class",
+        choices=[item.value for item in RightsClass],
+        default=RightsClass.UNKNOWN_REVIEW_REQUIRED.value,
+    )
+    inventory.set_defaults(func=run_inventory)
+
+    index_manifest = subparsers.add_parser(
+        "index-manifest",
+        help="build a local search index from a v0.4 intake manifest",
+        description="Build a local JSONL search index from public-safe v0.4 intake manifest metadata.",
+    )
+    index_manifest.add_argument("manifest", type=Path, help="v0.4 intake manifest JSON.")
+    index_manifest.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
+    index_manifest.set_defaults(func=run_index_manifest)
+
+    index_text = subparsers.add_parser(
+        "index-text-records",
+        help="build a local search index from synthetic/public-safe text records",
+        description="Build a local JSONL search index from synthetic or separately approved text records.",
+    )
+    index_text.add_argument("text_records", type=Path, help="Synthetic/public-safe text records JSON.")
+    index_text.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
+    index_text.set_defaults(func=run_index_text_records)
+
+    index_table = subparsers.add_parser(
+        "index-table-records",
+        help="build a local search index from synthetic/public-safe table records",
+        description="Build a local JSONL search index from synthetic or separately approved table metadata records.",
+    )
+    index_table.add_argument("table_records", type=Path, help="Synthetic/public-safe table records JSON.")
+    index_table.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
+    index_table.set_defaults(func=run_index_table_records)
+
+    index_image = subparsers.add_parser(
+        "index-image-records",
+        help="build a local search index from synthetic/public-safe image records",
+        description="Build a local JSONL search index from synthetic or separately approved image metadata records.",
+    )
+    index_image.add_argument("image_records", type=Path, help="Synthetic/public-safe image records JSON.")
+    index_image.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
+    index_image.set_defaults(func=run_index_image_records)
 
     return parser
 

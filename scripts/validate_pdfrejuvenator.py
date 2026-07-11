@@ -29,6 +29,8 @@ CORE_SCRIPT_IMPORTS = [
     "run_pdf_rejuvenation",
     "search_local_index",
     "validate_consolidated_review_output",
+    "validate_corpus_intake",
+    "validate_corpus_search",
 ]
 
 REQUIRED_RUNTIME_MODULES = [
@@ -181,6 +183,28 @@ def check_page_selection_helpers() -> list[CheckResult]:
     return [CheckResult(name, "PASS" if passed else "FAIL", detail) for name, passed, detail in checks]
 
 
+def check_corpus_intake_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_corpus_intake import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"corpus intake {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_corpus_search_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_corpus_search import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"corpus search {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
 def print_results(results: list[CheckResult], verbose: bool) -> None:
     for result in results:
         if result.status == "PASS" and not verbose:
@@ -205,6 +229,8 @@ def main() -> int:
     results.extend(import_core_scripts())
     results.extend(check_ocr_table_structural_validation())
     results.extend(check_page_selection_helpers())
+    results.extend(check_corpus_intake_validation())
+    results.extend(check_corpus_search_validation())
 
     failures = [result for result in results if result.status == "FAIL"]
     warnings = [result for result in results if result.status == "WARN"]
