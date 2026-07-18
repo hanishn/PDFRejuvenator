@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pdfrejuvenator"
-version = "0.4.1"
+version = "0.5.0"
 description = "Convert PDFs into editable SVG review packets."
 readme = "README.md"
 requires-python = ">=3.11"

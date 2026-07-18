@@ -151,6 +151,36 @@ Run the v0.5 table records validator:
 python scripts\validate_table_records.py
 ```
 
+## v0.5 Vector Search
+
+The v0.5 vector layer builds a local retrieval index from an existing PDFRejuvenator JSONL search index. It is designed for future RAG workflows while keeping private corpus artifacts local.
+
+Build a vector index from a search index:
+
+```powershell
+python -m pdfrejuvenator build-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_index.jsonl" --output "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json"
+```
+
+Validate a vector index:
+
+```powershell
+python -m pdfrejuvenator validate-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json"
+```
+
+Search a vector index:
+
+```powershell
+python -m pdfrejuvenator vector-search "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json" "query text" --limit 5
+```
+
+Run the vector index validator:
+
+```powershell
+python scripts\validate_vector_index.py
+```
+
+The default provider is deterministic and offline. It exists for local validation, command smoke tests, and public-safe fixtures. It is not a semantic embedding model. Future provider adapters should record provider, model, dimensions, and fingerprint metadata in the vector index.
+
 ## Validation
 
 Project validation:
@@ -220,5 +250,6 @@ This public version is open source. Future commercial products or hosted service
 - `docs\OUTPUT_GUIDE.md`
 - `docs\PUBLICATION_GUIDE.md`
 - `docs\VALIDATION_GUIDE.md`
+- `docs\VECTOR_INDEX.md`
 
 Private validation PDFs and legacy fixture scripts are retained locally for regression testing. They are not public fixtures and are not part of a public GitHub release surface.

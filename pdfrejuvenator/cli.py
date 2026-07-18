@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,13 @@ from pdfrejuvenator.ocr_records import build_ocr_records_from_manifest
 from pdfrejuvenator.private_workspace import (
     init_private_workspace,
     validate_private_workspace,
+)
+from pdfrejuvenator.vector_index import (
+    build_vector_index,
+    load_vector_index,
+    search_vector_index,
+    validate_vector_index_payload,
+    validate_vector_index_source,
 )
 
 
@@ -174,6 +182,69 @@ def run_index_ocr_records(args: argparse.Namespace) -> int:
     count = build_index_from_ocr_records(source, output)
     print(f"OCR SEARCH INDEX: {output}")
     print(f"OCR SEARCH SUMMARY: records={count} failures=0")
+    return 0
+
+
+def run_build_vector_index(args: argparse.Namespace) -> int:
+    source = args.search_index.resolve()
+    if not source.exists():
+        print(f"ERROR: search index not found: {source}", file=sys.stderr)
+        return 2
+    output = args.output.resolve()
+    try:
+        count = build_vector_index(source, output, max_chars=args.max_chars)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"VECTOR INDEX: {output}")
+    print(f"VECTOR INDEX SUMMARY: chunks={count} failures=0")
+    return 0
+
+
+def run_validate_vector_index(args: argparse.Namespace) -> int:
+    source = args.vector_index.resolve()
+    if not source.exists():
+        print(f"ERROR: vector index not found: {source}", file=sys.stderr)
+        return 2
+    try:
+        payload = load_vector_index(source)
+        issues = [*validate_vector_index_payload(payload), *validate_vector_index_source(payload)]
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    for issue in issues:
+        print(f"ERROR: {issue}", file=sys.stderr)
+    print(f"VECTOR INDEX VALIDATION SUMMARY: issues={len(issues)} failures={len(issues)}")
+    return 1 if issues else 0
+
+
+def run_vector_search(args: argparse.Namespace) -> int:
+    source = args.vector_index.resolve()
+    if not source.exists():
+        print(f"ERROR: vector index not found: {source}", file=sys.stderr)
+        return 2
+    try:
+        results = search_vector_index(source, args.query, limit=args.limit)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    for result in results:
+        print(
+            json.dumps(
+                {
+                    "score": round(float(result["score"]), 6),
+                    "chunk_id": result["chunk_id"],
+                    "source_record_id": result["source_record_id"],
+                    "record_type": result["record_type"],
+                    "page": result["page"],
+                    "artifact_path": result["artifact_path"],
+                    "text": result["text"],
+                    "metadata": result["metadata"],
+                },
+                sort_keys=True,
+            )
+        )
+    print(f"VECTOR SEARCH SUMMARY: results={len(results)} failures=0")
     return 0
 
 
@@ -333,6 +404,34 @@ def build_parser() -> argparse.ArgumentParser:
     index_ocr.add_argument("ocr_records", type=Path, help="Private OCR records JSON.")
     index_ocr.add_argument("--output", type=Path, required=True, help="Search index JSONL output path.")
     index_ocr.set_defaults(func=run_index_ocr_records)
+
+    build_vector = subparsers.add_parser(
+        "build-vector-index",
+        help="build a local vector index from a PDFRejuvenator search index",
+        description="Build a local v0.5 vector index from a PDFRejuvenator JSONL search index.",
+    )
+    build_vector.add_argument("search_index", type=Path, help="PDFRejuvenator search_index.jsonl input.")
+    build_vector.add_argument("--output", type=Path, required=True, help="Vector index JSON output path.")
+    build_vector.add_argument("--max-chars", type=int, default=1400, help="Maximum characters per vector chunk.")
+    build_vector.set_defaults(func=run_build_vector_index)
+
+    validate_vector = subparsers.add_parser(
+        "validate-vector-index",
+        help="validate a local vector index",
+        description="Validate a local v0.5 vector index schema, chunks, and embedding dimensions.",
+    )
+    validate_vector.add_argument("vector_index", type=Path, help="Vector index JSON path.")
+    validate_vector.set_defaults(func=run_validate_vector_index)
+
+    vector_search = subparsers.add_parser(
+        "vector-search",
+        help="search a local vector index",
+        description="Search a local v0.5 vector index and emit JSONL retrieval results.",
+    )
+    vector_search.add_argument("vector_index", type=Path, help="Vector index JSON path.")
+    vector_search.add_argument("query", help="Search query.")
+    vector_search.add_argument("--limit", type=int, default=10)
+    vector_search.set_defaults(func=run_vector_search)
 
     init_private = subparsers.add_parser(
         "init-private-workspace",

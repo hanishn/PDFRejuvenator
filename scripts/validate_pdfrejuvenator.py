@@ -35,6 +35,7 @@ CORE_SCRIPT_IMPORTS = [
     "validate_ocr_search",
     "validate_private_workspace",
     "validate_table_records",
+    "validate_vector_index",
 ]
 
 REQUIRED_RUNTIME_MODULES = [
@@ -253,6 +254,17 @@ def check_table_records_validation() -> list[CheckResult]:
     ]
 
 
+def check_vector_index_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_vector_index import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"vector index {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
 def print_results(results: list[CheckResult], verbose: bool) -> None:
     for result in results:
         if result.status == "PASS" and not verbose:
@@ -283,6 +295,7 @@ def main() -> int:
     results.extend(check_ocr_records_validation())
     results.extend(check_ocr_search_validation())
     results.extend(check_table_records_validation())
+    results.extend(check_vector_index_validation())
 
     failures = [result for result in results if result.status == "FAIL"]
     warnings = [result for result in results if result.status == "WARN"]

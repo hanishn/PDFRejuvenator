@@ -30,6 +30,7 @@ SCRIPT_ALLOWLIST = [
     "validate_pdfrejuvenator.py",
     "validate_private_workspace.py",
     "validate_table_records.py",
+    "validate_vector_index.py",
 ]
 
 ROOT_FILES = [
@@ -53,6 +54,7 @@ DOC_FILES = [
     "PUBLICATION_GUIDE.md",
     "SEARCHABILITY_VALIDATION_PLAN.md",
     "VALIDATION_GUIDE.md",
+    "VECTOR_INDEX.md",
 ]
 
 REQUIREMENT_FILES = [

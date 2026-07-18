@@ -30,6 +30,7 @@ SCRIPT_ALLOWLIST = [
     "validate_pdfrejuvenator.py",
     "validate_private_workspace.py",
     "validate_table_records.py",
+    "validate_vector_index.py",
 ]
 
 ROOT_FILES = [
@@ -51,6 +52,7 @@ DOC_FILES = [
     "PRIVATE_WORKSPACE_ARCHITECTURE.md",
     "SEARCHABILITY_VALIDATION_PLAN.md",
     "VALIDATION_GUIDE.md",
+    "VECTOR_INDEX.md",
 ]
 
 REQUIREMENT_FILES = [
@@ -122,7 +124,7 @@ def main() -> int:
 
     if args.output_dir is None:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = ROOT / "outputs" / "delivery_packages" / f"PDFRejuvenator_v0.4_{stamp}"
+        output_dir = ROOT / "outputs" / "delivery_packages" / f"PDFRejuvenator_v0.5_{stamp}"
     else:
         output_dir = args.output_dir.resolve()
 
