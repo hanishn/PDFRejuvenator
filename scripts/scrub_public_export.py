@@ -34,6 +34,9 @@ SKIP_PARTS = {
     ".git",
     ".mypy_cache",
     ".pytest_cache",
+    "node_modules",
+    "playwright-report",
+    "test-results",
 }
 
 GENERATED_PARTS = {

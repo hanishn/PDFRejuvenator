@@ -145,20 +145,32 @@ Run the OCR search validator:
 python scripts\validate_ocr_search.py
 ```
 
-Run the v0.5 table records validator:
+Run the table records validator:
 
 ```powershell
 python scripts\validate_table_records.py
 ```
 
-## v0.5 Vector Search
+## v0.6 Vector Search
 
-The v0.5 vector layer builds a local retrieval index from an existing PDFRejuvenator JSONL search index. It is designed for future RAG workflows while keeping private corpus artifacts local.
+The v0.6 vector layer builds a local retrieval index from an existing PDFRejuvenator JSONL search index. It is designed for future RAG workflows while keeping private corpus artifacts local.
 
-Build a vector index from a search index:
+Build a deterministic vector index from a search index:
 
 ```powershell
-python -m pdfrejuvenator build-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_index.jsonl" --output "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json"
+python -m pdfrejuvenator build-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_index.jsonl" --output "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json" --provider deterministic-test --max-chars 1400 --overlap-chars 120
+```
+
+Build a local Ollama semantic vector index:
+
+```powershell
+python -m pdfrejuvenator build-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_index.jsonl" --output "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_ollama_vector_index.json" --provider ollama --model nomic-embed-text --max-chars 1400 --overlap-chars 120
+```
+
+Build a local Ollama semantic vector index without storing chunk text:
+
+```powershell
+python -m pdfrejuvenator build-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_index.jsonl" --output "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_ollama_vector_index_redacted.json" --provider ollama --model nomic-embed-text --max-chars 1400 --overlap-chars 120 --omit-text
 ```
 
 Validate a vector index:
@@ -167,10 +179,34 @@ Validate a vector index:
 python -m pdfrejuvenator validate-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json"
 ```
 
+List available local embedding providers:
+
+```powershell
+python -m pdfrejuvenator list-embedding-providers
+```
+
 Search a vector index:
 
 ```powershell
-python -m pdfrejuvenator vector-search "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json" "query text" --limit 5
+python -m pdfrejuvenator vector-search "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json" "query text" --provider deterministic-test --limit 5
+```
+
+Search a private vector index without emitting matched text:
+
+```powershell
+python -m pdfrejuvenator vector-search "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_ollama_vector_index.json" "query text" --provider ollama --model nomic-embed-text --limit 5 --hide-text
+```
+
+Inspect vector index metadata:
+
+```powershell
+python -m pdfrejuvenator inspect-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json"
+```
+
+Validate provider compatibility:
+
+```powershell
+python -m pdfrejuvenator validate-vector-index "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json" --provider deterministic-test
 ```
 
 Run the vector index validator:
@@ -179,7 +215,33 @@ Run the vector index validator:
 python scripts\validate_vector_index.py
 ```
 
-The default provider is deterministic and offline. It exists for local validation, command smoke tests, and public-safe fixtures. It is not a semantic embedding model. Future provider adapters should record provider, model, dimensions, and fingerprint metadata in the vector index.
+The default v0.6 provider is `deterministic-test`. It is deterministic and offline. It exists for local validation, command smoke tests, and public-safe fixtures. The semantic local provider is `ollama`, which uses a local Ollama embedding model for private on-machine retrieval tests. Provider adapters record provider, model, dimensions, and fingerprint metadata in the vector index. Indexes should be rebuilt when provider fingerprints change. Use `--omit-text` when building private vector indexes that should not retain chunk text, and use `--hide-text` when writing private search evidence that should include scores and source ids without copied chunk text.
+
+Generated vector indexes, vector-search output, private coverage matrices, and private boundary manifests are local-only runtime artifacts. Public exports may include code, docs, and validators, but not generated private index or retrieval evidence files.
+
+## v0.7 Answer Query
+
+The v0.7 answer layer retrieves vector evidence for a question and emits a citation-validated JSON answer packet.
+
+Create a retrieval-only answer packet without calling a language model:
+
+```powershell
+python -m pdfrejuvenator answer-query "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_vector_index.json" "query text" --provider deterministic-test --no-generate --output answer_query.json --evidence-output answer_query_evidence.jsonl
+```
+
+Create a local Ollama answer from retrieved evidence:
+
+```powershell
+python -m pdfrejuvenator answer-query "G:\PrivateCorpus\PDFRejuvenator\indexes\ocr_ollama_vector_index.json" "query text" --provider ollama --model nomic-embed-text --answer-provider ollama --answer-model llama3.1 --output answer_query.json --evidence-output answer_query_evidence.jsonl
+```
+
+Validate an answer packet:
+
+```powershell
+python scripts\validate_answer_query.py answer_query.json answer_query_evidence.jsonl
+```
+
+Generated answer-query JSON and evidence JSONL files are local runtime artifacts. Do not include private answer outputs, prompts, retrieved text, or evidence files in public exports.
 
 ## Validation
 
@@ -187,6 +249,37 @@ Project validation:
 
 ```powershell
 python scripts\validate_pdfrejuvenator.py
+```
+
+Validate a v0.6 release-review summary when preparing a local evidence packet:
+
+```powershell
+python scripts\validate_release_review_summary.py "G:\path\to\v060_release_review_summary.json" --check-paths
+```
+
+Validate staged public/package exports for private runtime vector artifacts:
+
+```powershell
+python scripts\validate_export_manifest.py "G:\path\to\public_source_export" "G:\path\to\package_export"
+```
+
+Validate a bounded private coverage boundary manifest:
+
+```powershell
+python scripts\validate_coverage_boundary.py "G:\path\to\coverage_boundary.json" --check-paths
+```
+
+Validate private coverage matrix rows:
+
+```powershell
+python scripts\validate_private_coverage_matrix.py "G:\path\to\coverage_matrix.json" --check-paths
+python scripts\validate_private_coverage_matrix.py "G:\path\to\omit_hide_matrix.json" --check-paths --require-redacted
+```
+
+Validate bounded coverage adequacy and representativeness:
+
+```powershell
+python scripts\validate_coverage_adequacy.py "G:\path\to\coverage_adequacy.json" --check-paths
 ```
 
 Validate an existing consolidated output folder:

@@ -22,13 +22,23 @@ SCRIPT_ALLOWLIST = [
     "scrub_public_export.py",
     "search_local_index.py",
     "generate_public_sample_pdf.py",
+    "assert_answer_query_output.py",
+    "assert_answer_provider_failure.py",
+    "assert_malformed_vector_index.py",
+    "assert_redacted_answer_query_output.py",
+    "validate_answer_query.py",
     "validate_consolidated_review_output.py",
+    "validate_coverage_adequacy.py",
+    "validate_coverage_boundary.py",
     "validate_corpus_intake.py",
     "validate_corpus_search.py",
+    "validate_export_manifest.py",
     "validate_ocr_records.py",
     "validate_ocr_search.py",
     "validate_pdfrejuvenator.py",
     "validate_private_workspace.py",
+    "validate_private_coverage_matrix.py",
+    "validate_release_review_summary.py",
     "validate_table_records.py",
     "validate_vector_index.py",
 ]
@@ -39,12 +49,16 @@ ROOT_FILES = [
     "LICENSE",
     "process_pdf.bat",
     "process_pdf_batch.bat",
+    "package-lock.json",
+    "package.json",
+    "playwright.config.js",
     "pyproject.toml",
     "README.md",
     "README_COMMAND_LINE_HANDOFF.md",
 ]
 
 DOC_FILES = [
+    "ANSWER_QUERY.md",
     "CORPUS_INTAKE_ARCHITECTURE.md",
     "GITHUB_PUBLICATION_CHECKLIST.md",
     "OUTPUT_GUIDE.md",
@@ -127,6 +141,7 @@ def build_export(output_dir: Path, clean: bool) -> Path:
     copy_tree(ROOT / "pdfrejuvenator", output_dir / "pdfrejuvenator")
     copy_tree(ROOT / "src", output_dir / "src")
     copy_tree(ROOT / ".github", output_dir / ".github")
+    copy_tree(ROOT / "tests", output_dir / "tests")
     copy_files(ROOT / "scripts", output_dir / "scripts", SCRIPT_ALLOWLIST)
     copy_files(ROOT, output_dir, ROOT_FILES)
     copy_files(ROOT / "docs", output_dir / "docs", DOC_FILES)
