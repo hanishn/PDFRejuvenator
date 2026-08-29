@@ -15,6 +15,7 @@ PACKAGE = ROOT / "pdfrejuvenator"
 
 CORE_SCRIPT_IMPORTS = [
     "pdfrejuvenator",
+    "pdfrejuvenator.answering",
     "pdfrejuvenator.cli",
     "build_consolidated_review_output",
     "build_full_book_review_packet",
@@ -28,12 +29,22 @@ CORE_SCRIPT_IMPORTS = [
     "run_pdf_book",
     "run_pdf_rejuvenation",
     "search_local_index",
+    "assert_answer_provider_failure",
+    "assert_answer_query_output",
+    "assert_malformed_vector_index",
+    "assert_redacted_answer_query_output",
     "validate_consolidated_review_output",
+    "validate_answer_query",
+    "validate_coverage_adequacy",
+    "validate_coverage_boundary",
     "validate_corpus_intake",
     "validate_corpus_search",
     "validate_ocr_records",
     "validate_ocr_search",
     "validate_private_workspace",
+    "validate_private_coverage_matrix",
+    "validate_export_manifest",
+    "validate_release_review_summary",
     "validate_table_records",
     "validate_vector_index",
 ]
@@ -265,6 +276,72 @@ def check_vector_index_validation() -> list[CheckResult]:
     ]
 
 
+def check_answer_query_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_answer_query import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"answer query {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_release_review_summary_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_release_review_summary import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"release review summary {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_export_manifest_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_export_manifest import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"export manifest {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_coverage_boundary_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_coverage_boundary import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"coverage boundary {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_coverage_adequacy_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_coverage_adequacy import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"coverage adequacy {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
+def check_private_coverage_matrix_validation() -> list[CheckResult]:
+    sys.path.insert(0, str(SCRIPTS))
+    from validate_private_coverage_matrix import run_checks  # noqa: PLC0415
+
+    checks = run_checks()
+    return [
+        CheckResult(f"private coverage matrix {name}", "PASS" if passed else "FAIL", detail)
+        for name, passed, detail in checks
+    ]
+
+
 def print_results(results: list[CheckResult], verbose: bool) -> None:
     for result in results:
         if result.status == "PASS" and not verbose:
@@ -296,6 +373,12 @@ def main() -> int:
     results.extend(check_ocr_search_validation())
     results.extend(check_table_records_validation())
     results.extend(check_vector_index_validation())
+    results.extend(check_answer_query_validation())
+    results.extend(check_export_manifest_validation())
+    results.extend(check_coverage_adequacy_validation())
+    results.extend(check_coverage_boundary_validation())
+    results.extend(check_private_coverage_matrix_validation())
+    results.extend(check_release_review_summary_validation())
 
     failures = [result for result in results if result.status == "FAIL"]
     warnings = [result for result in results if result.status == "WARN"]

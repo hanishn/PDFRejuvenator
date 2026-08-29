@@ -46,6 +46,27 @@ Run from the exported tree:
 python scripts\validate_pdfrejuvenator.py
 ```
 
+For a v0.6 release-review evidence packet, validate the machine-readable summary:
+
+```powershell
+python scripts\validate_release_review_summary.py "G:\path\to\v060_release_review_summary.json" --check-paths
+```
+
+Validate staged public/package exports for private runtime vector artifacts:
+
+```powershell
+python scripts\validate_export_manifest.py "G:\path\to\public_source_export" "G:\path\to\package_export"
+```
+
+Validate bounded private coverage evidence before release review:
+
+```powershell
+python scripts\validate_coverage_boundary.py "G:\path\to\coverage_boundary.json" --check-paths
+python scripts\validate_coverage_adequacy.py "G:\path\to\coverage_adequacy.json" --check-paths
+python scripts\validate_private_coverage_matrix.py "G:\path\to\coverage_matrix.json" --check-paths
+python scripts\validate_private_coverage_matrix.py "G:\path\to\omit_hide_matrix.json" --check-paths --require-redacted
+```
+
 Run a reference scan before using the export as a GitHub source:
 
 ```powershell
@@ -89,6 +110,12 @@ The project now exposes a `dev` install extra for validation tooling:
 ```powershell
 python -m pip install -e .[dev]
 python scripts\validate_pdfrejuvenator.py
+python scripts\validate_release_review_summary.py "G:\path\to\v060_release_review_summary.json" --check-paths
+python scripts\validate_export_manifest.py "G:\path\to\public_source_export" "G:\path\to\package_export"
+python scripts\validate_coverage_boundary.py "G:\path\to\coverage_boundary.json" --check-paths
+python scripts\validate_coverage_adequacy.py "G:\path\to\coverage_adequacy.json" --check-paths
+python scripts\validate_private_coverage_matrix.py "G:\path\to\coverage_matrix.json" --check-paths
+python scripts\validate_private_coverage_matrix.py "G:\path\to\omit_hide_matrix.json" --check-paths --require-redacted
 python scripts\scrub_public_export.py
 python -m ruff check --no-cache pdfrejuvenator scripts src
 ```

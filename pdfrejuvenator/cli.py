@@ -6,6 +6,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from pdfrejuvenator.answering import (
+    build_no_generate_answer,
+    ensure_valid_answer,
+    evidence_records_to_jsonl,
+    request_ollama_answer,
+)
 from pdfrejuvenator.corpus_intake import (
     PrivacyClass,
     RightsClass,
@@ -27,9 +33,14 @@ from pdfrejuvenator.private_workspace import (
 )
 from pdfrejuvenator.vector_index import (
     build_vector_index,
+    create_embedding_provider,
+    inspect_vector_index_payload,
+    list_embedding_providers,
     load_vector_index,
     search_vector_index,
+    serialize_vector_search_results,
     validate_vector_index_payload,
+    validate_vector_index_provider,
     validate_vector_index_source,
 )
 
@@ -192,7 +203,21 @@ def run_build_vector_index(args: argparse.Namespace) -> int:
         return 2
     output = args.output.resolve()
     try:
-        count = build_vector_index(source, output, max_chars=args.max_chars)
+        provider = create_embedding_provider(
+            args.provider,
+            dimensions=args.dimensions,
+            model=args.model,
+            ollama_url=args.ollama_url,
+            ollama_timeout_seconds=args.ollama_timeout_seconds,
+        )
+        count = build_vector_index(
+            source,
+            output,
+            provider=provider,
+            max_chars=args.max_chars,
+            overlap_chars=args.overlap_chars,
+            include_text=not args.omit_text,
+        )
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -209,6 +234,18 @@ def run_validate_vector_index(args: argparse.Namespace) -> int:
     try:
         payload = load_vector_index(source)
         issues = [*validate_vector_index_payload(payload), *validate_vector_index_source(payload)]
+        if args.provider:
+            provider_meta = payload.get("embedding_provider", {})
+            dimensions = int(provider_meta.get("dimensions", args.dimensions)) if isinstance(provider_meta, dict) else args.dimensions
+            model = args.model or (str(provider_meta.get("model")) if isinstance(provider_meta, dict) else None)
+            provider = create_embedding_provider(
+                args.provider,
+                dimensions=dimensions,
+                model=model,
+                ollama_url=args.ollama_url,
+                ollama_timeout_seconds=args.ollama_timeout_seconds,
+            )
+            issues.extend(validate_vector_index_provider(payload, provider))
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -224,27 +261,112 @@ def run_vector_search(args: argparse.Namespace) -> int:
         print(f"ERROR: vector index not found: {source}", file=sys.stderr)
         return 2
     try:
-        results = search_vector_index(source, args.query, limit=args.limit)
+        payload = load_vector_index(source)
+        provider_meta = payload.get("embedding_provider", {})
+        dimensions = int(provider_meta.get("dimensions", args.dimensions)) if isinstance(provider_meta, dict) else args.dimensions
+        model = args.model or (str(provider_meta.get("model")) if isinstance(provider_meta, dict) else None)
+        provider = create_embedding_provider(
+            args.provider,
+            dimensions=dimensions,
+            model=model,
+            ollama_url=args.ollama_url,
+            ollama_timeout_seconds=args.ollama_timeout_seconds,
+        )
+        results = search_vector_index(source, args.query, provider=provider, limit=args.limit, min_score=args.min_score)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     for result in results:
+        output = result.to_dict(hide_text=args.hide_text)
+        output["score"] = round(float(output["score"]), 6)
         print(
             json.dumps(
-                {
-                    "score": round(float(result["score"]), 6),
-                    "chunk_id": result["chunk_id"],
-                    "source_record_id": result["source_record_id"],
-                    "record_type": result["record_type"],
-                    "page": result["page"],
-                    "artifact_path": result["artifact_path"],
-                    "text": result["text"],
-                    "metadata": result["metadata"],
-                },
+                output,
                 sort_keys=True,
             )
         )
     print(f"VECTOR SEARCH SUMMARY: results={len(results)} failures=0")
+    return 0
+
+
+def run_answer_query(args: argparse.Namespace) -> int:
+    source = args.vector_index.resolve()
+    if not source.exists():
+        print(f"ERROR: vector index not found: {source}", file=sys.stderr)
+        return 2
+    try:
+        payload = load_vector_index(source)
+        provider_meta = payload.get("embedding_provider", {})
+        dimensions = int(provider_meta.get("dimensions", args.dimensions)) if isinstance(provider_meta, dict) else args.dimensions
+        model = args.model or (str(provider_meta.get("model")) if isinstance(provider_meta, dict) else None)
+        provider = create_embedding_provider(
+            args.provider,
+            dimensions=dimensions,
+            model=model,
+            ollama_url=args.ollama_url,
+            ollama_timeout_seconds=args.ollama_timeout_seconds,
+        )
+        results = search_vector_index(source, args.question, provider=provider, limit=args.limit, min_score=args.min_score)
+        evidence_payload = serialize_vector_search_results(results, hide_text=args.hide_evidence_text)
+        if args.no_generate:
+            answer = build_no_generate_answer(args.question, results, hide_evidence_text=args.hide_evidence_text)
+        elif args.answer_provider == "ollama":
+            if args.hide_evidence_text:
+                raise ValueError("generated answers require evidence text; use --no-generate with --hide-evidence-text")
+            answer = request_ollama_answer(
+                args.question,
+                results,
+                model=args.answer_model,
+                base_url=args.ollama_url,
+                timeout_seconds=args.answer_timeout_seconds,
+            )
+            answer.setdefault("schema_version", "pdfrejuvenator.answer_query.v0.7")
+            answer.setdefault("question", args.question)
+            answer.setdefault("evidence_count", len(results))
+            answer.setdefault("unsupported_claims", [])
+            answer.setdefault("insufficient_evidence", len(results) == 0)
+        else:
+            raise ValueError(f"unsupported answer provider: {args.answer_provider}")
+        answer = ensure_valid_answer(answer, evidence_payload)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    if args.evidence_output:
+        evidence_path = args.evidence_output.resolve()
+        evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence_path.write_text(evidence_records_to_jsonl(results, hide_text=args.hide_evidence_text) + "\n", encoding="utf-8")
+    output = json.dumps(answer, indent=2 if args.pretty else None, sort_keys=True)
+    if args.output:
+        output_path = args.output.resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(output + "\n", encoding="utf-8")
+    else:
+        print(output)
+    print(f"ANSWER QUERY SUMMARY: evidence={len(results)} failures=0")
+    return 0
+
+
+def run_inspect_vector_index(args: argparse.Namespace) -> int:
+    source = args.vector_index.resolve()
+    if not source.exists():
+        print(f"ERROR: vector index not found: {source}", file=sys.stderr)
+        return 2
+    try:
+        payload = load_vector_index(source)
+        summary = inspect_vector_index_payload(payload)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    print(f"VECTOR INDEX INSPECTION SUMMARY: issues={summary['validation_issue_count']} failures=0")
+    return 0
+
+
+def run_list_embedding_providers(_args: argparse.Namespace) -> int:
+    for provider in list_embedding_providers():
+        print(json.dumps(provider, sort_keys=True))
+    print("EMBEDDING PROVIDER SUMMARY: failures=0")
     return 0
 
 
@@ -408,30 +530,88 @@ def build_parser() -> argparse.ArgumentParser:
     build_vector = subparsers.add_parser(
         "build-vector-index",
         help="build a local vector index from a PDFRejuvenator search index",
-        description="Build a local v0.5 vector index from a PDFRejuvenator JSONL search index.",
+        description="Build a local v0.6 vector index from a PDFRejuvenator JSONL search index.",
     )
     build_vector.add_argument("search_index", type=Path, help="PDFRejuvenator search_index.jsonl input.")
     build_vector.add_argument("--output", type=Path, required=True, help="Vector index JSON output path.")
     build_vector.add_argument("--max-chars", type=int, default=1400, help="Maximum characters per vector chunk.")
+    build_vector.add_argument("--overlap-chars", type=int, default=0, help="Character overlap between vector chunks.")
+    build_vector.add_argument("--provider", default="deterministic-test", help="Embedding provider name.")
+    build_vector.add_argument("--dimensions", type=int, default=0, help="Embedding dimensions for the selected provider. Use 0 for provider default or model probe.")
+    build_vector.add_argument("--model", default=None, help="Embedding model name for providers that require one.")
+    build_vector.add_argument("--ollama-url", default="http://127.0.0.1:11434", help="Local Ollama base URL.")
+    build_vector.add_argument("--ollama-timeout-seconds", type=float, default=120.0, help="Ollama embedding request timeout.")
+    build_vector.add_argument("--omit-text", action="store_true", help="Omit chunk text from the vector index after embedding.")
     build_vector.set_defaults(func=run_build_vector_index)
 
     validate_vector = subparsers.add_parser(
         "validate-vector-index",
         help="validate a local vector index",
-        description="Validate a local v0.5 vector index schema, chunks, and embedding dimensions.",
+        description="Validate a local v0.6 vector index schema, chunks, and embedding dimensions.",
     )
     validate_vector.add_argument("vector_index", type=Path, help="Vector index JSON path.")
+    validate_vector.add_argument("--provider", default=None, help="Require compatibility with a specific provider.")
+    validate_vector.add_argument("--dimensions", type=int, default=0, help="Provider dimensions fallback.")
+    validate_vector.add_argument("--model", default=None, help="Embedding model name for providers that require one.")
+    validate_vector.add_argument("--ollama-url", default="http://127.0.0.1:11434", help="Local Ollama base URL.")
+    validate_vector.add_argument("--ollama-timeout-seconds", type=float, default=120.0, help="Ollama embedding request timeout.")
     validate_vector.set_defaults(func=run_validate_vector_index)
+
+    inspect_vector = subparsers.add_parser(
+        "inspect-vector-index",
+        help="inspect a local vector index",
+        description="Print local v0.6 vector index metadata and validation summary.",
+    )
+    inspect_vector.add_argument("vector_index", type=Path, help="Vector index JSON path.")
+    inspect_vector.set_defaults(func=run_inspect_vector_index)
+
+    list_providers = subparsers.add_parser(
+        "list-embedding-providers",
+        help="list supported embedding providers",
+        description="List embedding providers available in this PDFRejuvenator build.",
+    )
+    list_providers.set_defaults(func=run_list_embedding_providers)
 
     vector_search = subparsers.add_parser(
         "vector-search",
         help="search a local vector index",
-        description="Search a local v0.5 vector index and emit JSONL retrieval results.",
+        description="Search a local v0.6 vector index and emit JSONL retrieval results.",
     )
     vector_search.add_argument("vector_index", type=Path, help="Vector index JSON path.")
     vector_search.add_argument("query", help="Search query.")
     vector_search.add_argument("--limit", type=int, default=10)
+    vector_search.add_argument("--min-score", type=float, default=None, help="Optional minimum cosine score.")
+    vector_search.add_argument("--provider", default="deterministic-test", help="Embedding provider name.")
+    vector_search.add_argument("--dimensions", type=int, default=0, help="Provider dimensions fallback.")
+    vector_search.add_argument("--model", default=None, help="Embedding model name for providers that require one.")
+    vector_search.add_argument("--ollama-url", default="http://127.0.0.1:11434", help="Local Ollama base URL.")
+    vector_search.add_argument("--ollama-timeout-seconds", type=float, default=120.0, help="Ollama embedding request timeout.")
+    vector_search.add_argument("--hide-text", action="store_true", help="Omit matched chunk text from JSONL results.")
     vector_search.set_defaults(func=run_vector_search)
+
+    answer_query = subparsers.add_parser(
+        "answer-query",
+        help="answer a question from local vector-index evidence",
+        description="Retrieve local vector evidence and emit a citation-validated answer JSON object.",
+    )
+    answer_query.add_argument("vector_index", type=Path, help="Vector index JSON path.")
+    answer_query.add_argument("question", help="Question to answer from retrieved evidence.")
+    answer_query.add_argument("--limit", type=int, default=5)
+    answer_query.add_argument("--min-score", type=float, default=None, help="Optional minimum cosine score.")
+    answer_query.add_argument("--provider", default="deterministic-test", help="Embedding provider name.")
+    answer_query.add_argument("--dimensions", type=int, default=0, help="Provider dimensions fallback.")
+    answer_query.add_argument("--model", default=None, help="Embedding model name for providers that require one.")
+    answer_query.add_argument("--ollama-url", default="http://127.0.0.1:11434", help="Local Ollama base URL.")
+    answer_query.add_argument("--ollama-timeout-seconds", type=float, default=120.0, help="Ollama embedding request timeout.")
+    answer_query.add_argument("--answer-provider", choices=["ollama"], default="ollama", help="Local answer provider.")
+    answer_query.add_argument("--answer-model", default="llama3.1", help="Local answer model name.")
+    answer_query.add_argument("--answer-timeout-seconds", type=float, default=120.0, help="Answer generation timeout.")
+    answer_query.add_argument("--no-generate", action="store_true", help="Return a grounded retrieval packet without calling an answer model.")
+    answer_query.add_argument("--hide-evidence-text", action="store_true", help="Omit retrieved evidence text from saved evidence JSONL.")
+    answer_query.add_argument("--evidence-output", type=Path, default=None, help="Optional retrieved evidence JSONL output path.")
+    answer_query.add_argument("--output", type=Path, default=None, help="Optional answer JSON output path.")
+    answer_query.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
+    answer_query.set_defaults(func=run_answer_query)
 
     init_private = subparsers.add_parser(
         "init-private-workspace",
