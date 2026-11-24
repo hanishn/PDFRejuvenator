@@ -4,7 +4,6 @@ import argparse
 import shutil
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 SCRIPT_ALLOWLIST = [

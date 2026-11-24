@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 INTERNAL_PATH_RE = re.compile(
     r"(?i)(?:[A-Z]:\\(?:Projects|Users)\\|/mnt/[a-z]/|DocumentExpertProcessLibrary\\outputs\\pdf_runs)"
 )

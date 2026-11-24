@@ -6,11 +6,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pdfrejuvenator.answering import ANSWER_SCHEMA_VERSION, validate_answer_payload  # noqa: E402
+from pdfrejuvenator.answering import ANSWER_SCHEMA_VERSION, validate_answer_payload
 
 
 def load_evidence_jsonl(path: Path) -> list[dict[str, object]]:
@@ -20,7 +19,7 @@ def load_evidence_jsonl(path: Path) -> list[dict[str, object]]:
             continue
         payload = json.loads(line)
         if not isinstance(payload, dict):
-            raise ValueError(f"evidence line {line_number} must be a JSON object")
+            raise ValueError(f"evidence line {line_number} must be a JSON object")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
         records.append(payload)
     return records
 

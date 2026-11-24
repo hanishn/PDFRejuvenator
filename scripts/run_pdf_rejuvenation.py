@@ -13,7 +13,6 @@ from typing import Any
 
 import fitz
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_STAGED = ROOT / "source" / "source.pdf"
 DEFAULT_OUTPUTS_ROOT = ROOT / "outputs" / "pdf_runs"
@@ -61,7 +60,7 @@ def assert_existing_pipeline_matches(pipeline_root: Path, source_hash: str, book
 def run_command(command: list[str], timeout: int | None = None) -> None:
     print("RUN " + " ".join(f'"{part}"' if " " in part else part for part in command), flush=True)
     started = time.time()
-    proc = subprocess.run(command, cwd=ROOT, text=True, timeout=timeout)
+    proc = subprocess.run(command, check=False, cwd=ROOT, text=True, timeout=timeout)
     duration = round(time.time() - started, 1)
     if proc.returncode != 0:
         raise SystemExit(f"command failed with exit code {proc.returncode} after {duration}s")

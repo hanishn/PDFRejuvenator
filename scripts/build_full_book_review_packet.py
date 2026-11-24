@@ -9,7 +9,6 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageDraw
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RUN_ROOT = ROOT / "outputs" / "pdfrejuvenator_review" / "full"
 GATE_REPORT = RUN_ROOT / "full_full_book_promotion_gate_report.json"

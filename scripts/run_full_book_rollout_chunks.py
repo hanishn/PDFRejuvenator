@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = ROOT / "outputs" / "pdfrejuvenator_rollout" / "pipeline"
 DEFAULT_PACKAGE_ROOT = ROOT / "outputs" / "pdfrejuvenator_rollout" / "editable_svg_rollout"
@@ -111,6 +110,7 @@ def run_chunk(args: argparse.Namespace, chunk: list[int], run_stamp: str) -> dic
     try:
         proc = subprocess.run(
             cmd,
+            check=False,
             cwd=str(ROOT),
             text=True,
             capture_output=True,

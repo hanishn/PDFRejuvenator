@@ -7,7 +7,6 @@ from typing import Any
 
 from pdfrejuvenator.corpus_intake import utc_now_iso
 
-
 WORKSPACE_CONFIG_NAME = "pdfrejuvenator_private_workspace.json"
 WORKSPACE_LAYOUT_VERSION = "0.5.0-private-workspace-v1"
 PRIVATE_WORKSPACE_DIRS = (

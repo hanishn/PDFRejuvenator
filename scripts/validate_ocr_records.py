@@ -5,22 +5,21 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pdfrejuvenator.corpus_intake import (  # noqa: E402
+from pdfrejuvenator.corpus_intake import (
     PrivacyClass,
     RightsClass,
     build_inventory_manifest,
     manifest_to_json,
 )
-from pdfrejuvenator.ocr_records import (  # noqa: E402
+from pdfrejuvenator.ocr_records import (
     OCR_RECORD_SCHEMA_VERSION,
     build_ocr_records_from_manifest,
     validate_ocr_record_payload,
 )
-from pdfrejuvenator.private_workspace import init_private_workspace  # noqa: E402
+from pdfrejuvenator.private_workspace import init_private_workspace
 
 
 def check(name: str, passed: bool, detail: str = "") -> tuple[str, bool, str]:

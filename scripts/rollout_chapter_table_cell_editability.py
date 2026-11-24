@@ -7,24 +7,25 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
-import traceback
 import sys
+import tempfile
 import time
+import traceback
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
 import fitz
-from PIL import Image, ImageChops, ImageDraw
 from fontTools.ttLib import TTFont
+from PIL import Image, ImageChops, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from doc_pipeline import read_json, write_json, write_text  # noqa: E402
-from render_inkscape_visual_comparisons import find_inkscape  # noqa: E402
+from render_inkscape_visual_comparisons import find_inkscape
+
+from doc_pipeline import read_json, write_json, write_text
 
 SVG_NS = "http://www.w3.org/2000/svg"
 INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape"
@@ -236,7 +237,7 @@ def make_calibrated_font(source_font: Path, output_font: Path, family: str, obse
         glyph = cmap.get(ord(char))
         if not glyph:
             continue
-        advance_units = int(round((sum(ratios) / len(ratios)) * units_per_em))
+        advance_units = round((sum(ratios) / len(ratios)) * units_per_em)
         old_advance, lsb = hmtx[glyph]
         hmtx[glyph] = (advance_units, lsb)
         if charstrings is not None and glyph in charstrings:
@@ -589,7 +590,7 @@ def collect_pdf_span_widths(source_pdf: Path, page: int) -> list[dict[str, Any]]
                 stripped = text.strip()
                 if not stripped:
                     continue
-                x0, y0, x1, y1 = [float(value) for value in span["bbox"]]
+                x0, y0, x1, _y1 = [float(value) for value in span["bbox"]]
                 next_x = None
                 for next_span in spans[span_idx + 1 :]:
                     if next_span.get("text", "").strip():
@@ -704,13 +705,7 @@ def group_line_text_into_paragraphs(root: ET.Element, page: int) -> list[dict[st
             column = 0 if item["x"] < 300 else 1
             same_line = previous_y is not None and abs(item["screen_y"] - previous_y) < 1.0 and column == previous_column
             new_paragraph = False
-            if not current:
-                new_paragraph = True
-            elif previous_column != column:
-                new_paragraph = True
-            elif previous_y is not None and not same_line and item["screen_y"] - previous_y > 13.2:
-                new_paragraph = True
-            elif previous_y is not None and not same_line and item["x"] in {45.0, 325.8}:
+            if not current or previous_column != column or previous_y is not None and not same_line and item["screen_y"] - previous_y > 13.2 or previous_y is not None and not same_line and item["x"] in {45.0, 325.8}:
                 new_paragraph = True
             if new_paragraph:
                 if current:
@@ -825,7 +820,7 @@ def build_inkscape_flow_text_variant(source_svg: Path, output_svg: Path) -> dict
         if not lines:
             continue
         screen_y = PAGE_HEIGHT + first_y
-        column_width = 260.0 if first_x < 300 else 260.0
+        column_width = 260.0
         height = max(20.0, len(lines) * 12.5 + 4.0)
         parent = parents.get(text)
         if parent is None:
@@ -1177,7 +1172,7 @@ def build_inkscape_bounded_textbox_variant(source_svg: Path, output_svg: Path, p
             },
         )
         first_line_indent = max(0.0, first_x - box_x)
-        leading_indent_spaces = " " * max(0, int(round(first_line_indent / max(1.0, font_size * 0.32))))
+        leading_indent_spaces = " " * max(0, round(first_line_indent / max(1.0, font_size * 0.32)))
         preserve_source_breaks = should_preserve_source_line_breaks(page, lines)
         pending_space = False
         first_written_span = True
@@ -1640,7 +1635,7 @@ def repaint_table(layer: ET.Element, table: dict[str, Any], rows: list[list[str]
 def rgb_float_to_hex(rgb: Any) -> str:
     if not rgb or len(rgb) < 3:
         return "#ffffff"
-    return "#" + "".join(f"{max(0, min(255, int(round(float(channel) * 255)))):02x}" for channel in rgb[:3])
+    return "#" + "".join(f"{max(0, min(255, round(float(channel) * 255))):02x}" for channel in rgb[:3])
 
 
 def repaint_table_from_pdf_drawings(layer: ET.Element, source_pdf: Path, page: int, table: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1768,7 +1763,7 @@ def add_generic_table(layer: ET.Element, page: int, table_index: int, table: dic
         anchors = ["middle"] * len(x_centers)
     required_cols = max((len(row) for row in rows), default=0)
     if required_cols > len(x_centers):
-        x0, y0, x1, y1 = table["bbox_points"]
+        x0, _y0, x1, _y1 = table["bbox_points"]
         cell_w = (x1 - x0) / max(1, required_cols)
         x_centers = [x0 + cell_w * (idx + 0.5) for idx in range(required_cols)]
         anchors = ["middle"] * required_cols
@@ -2042,14 +2037,14 @@ def render_svg(inkscape: Path, svg: Path, png: Path, width: int, height: int) ->
         export_png = png
         export_svg = svg
         if len(str(svg)) > 220:
-            handle = tempfile.NamedTemporaryFile(prefix="pdfrej_", suffix=".svg", delete=False)
-            handle.close()
+            with tempfile.NamedTemporaryFile(prefix="pdfrej_", suffix=".svg", delete=False) as handle:
+                pass
             temp_svg = Path(handle.name)
             shutil.copy2(svg, temp_svg)
             export_svg = temp_svg
         if len(str(png)) > 220:
-            handle = tempfile.NamedTemporaryFile(prefix="pdfrej_", suffix=".png", delete=False)
-            handle.close()
+            with tempfile.NamedTemporaryFile(prefix="pdfrej_", suffix=".png", delete=False) as handle:
+                pass
             temp_export = Path(handle.name)
             temp_export.unlink(missing_ok=True)
             export_png = temp_export
@@ -2248,7 +2243,7 @@ def edit_first_non_table_line(source_svg: Path, edited_svg: Path) -> dict[str, s
         candidates.append((element, value))
     if not candidates:
         return None
-    target, original = sorted(candidates, key=lambda item: len(item[1]), reverse=True)[0]
+    target, original = max(candidates, key=lambda item: len(item[1]))
     edited = original.replace("mutation", "copy-edit", 1) if "mutation" in original else original + " EDIT"
     first_tspan = target.find(f"{{{SVG_NS}}}tspan")
     if first_tspan is not None:
@@ -2273,7 +2268,7 @@ def edit_first_bounded_textbox(source_svg: Path, edited_svg: Path) -> dict[str, 
         candidates.append((element, value))
     if not candidates:
         return None
-    target, original = sorted(candidates, key=lambda item: len(item[1]), reverse=True)[0]
+    target, original = max(candidates, key=lambda item: len(item[1]))
     first_tspan = target.find(f"{{{SVG_NS}}}tspan")
     if first_tspan is None:
         target.text = "WRAP TEST INSERT " + (target.text or "")
@@ -2700,7 +2695,7 @@ def main() -> int:
             continue
         try:
             existing_pages[page_num] = process_page(output_root, package_root, manifest_path, inkscape)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
             failures.append({"manifest": str(manifest_path), "error": str(exc), "traceback": traceback.format_exc()})
     pages = [existing_pages[page_num] for page_num in sorted(existing_pages)]
     visual_blockers = [

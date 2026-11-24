@@ -4,11 +4,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pdfrejuvenator.private_workspace import (  # noqa: E402
+from pdfrejuvenator.private_workspace import (
     PRIVATE_WORKSPACE_DIRS,
     WORKSPACE_CONFIG_NAME,
     classify_workspace_path,

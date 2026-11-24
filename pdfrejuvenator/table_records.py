@@ -7,7 +7,6 @@ from typing import Any
 
 from pdfrejuvenator.private_workspace import path_is_within
 
-
 TABLE_RECORD_SCHEMA_VERSION = "0.5.0-table-records-v1"
 
 

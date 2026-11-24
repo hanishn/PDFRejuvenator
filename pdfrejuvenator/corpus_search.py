@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 SEARCH_SCHEMA_VERSION = "pdfrejuvenator.corpus_search.v0.4"
 TEXT_RECORD_SCHEMA_VERSION = "pdfrejuvenator.text_record.v0.4"
 TABLE_RECORD_SCHEMA_VERSION = "pdfrejuvenator.table_record.v0.4"

@@ -5,13 +5,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pdfrejuvenator.corpus_search import (  # noqa: E402
-    SEARCH_SCHEMA_VERSION,
+from pdfrejuvenator.corpus_search import (
     IMAGE_RECORD_SCHEMA_VERSION,
+    SEARCH_SCHEMA_VERSION,
     TABLE_RECORD_SCHEMA_VERSION,
     TEXT_RECORD_SCHEMA_VERSION,
     build_index_from_image_records,

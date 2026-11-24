@@ -10,7 +10,6 @@ from pathlib import Path
 
 from PIL import Image
 
-
 HREF_OR_SRC_RE = re.compile(r"""(?:href|src)=["']([^"']+)["']""", re.IGNORECASE)
 VALIDATION_SUMMARY_RE = re.compile(r"""<div class="validation-summary">.*?</div>""", re.DOTALL)
 

@@ -11,7 +11,7 @@ import fitz
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from doc_pipeline import read_json, run_pipeline, sha256_file, write_json  # noqa: E402
+from doc_pipeline import read_json, run_pipeline, sha256_file, write_json
 
 
 def parse_pages(value: str) -> list[int]:

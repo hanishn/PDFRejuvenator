@@ -8,7 +8,6 @@ from typing import Any
 
 from pdfrejuvenator.vector_index import VectorSearchResult
 
-
 ANSWER_SCHEMA_VERSION = "pdfrejuvenator.answer_query.v0.7"
 DEFAULT_OLLAMA_CHAT_MODEL = "llama3.1"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
@@ -172,7 +171,7 @@ def request_ollama_answer(
         raise ValueError(f"ollama answer request failed for model {model}: {exc}") from exc
     message = body.get("message")
     if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-        raise ValueError("ollama answer response did not include message.content")
+        raise ValueError("ollama answer response did not include message.content")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
     return parse_answer_json(message["content"])
 
 
@@ -187,7 +186,7 @@ def parse_answer_json(raw: str) -> dict[str, Any]:
         text = "\n".join(lines).strip()
     payload = json.loads(text)
     if not isinstance(payload, dict):
-        raise ValueError("answer payload must be a JSON object")
+        raise ValueError("answer payload must be a JSON object")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
     return payload
 
 

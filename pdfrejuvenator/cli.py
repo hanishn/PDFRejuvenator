@@ -44,7 +44,6 @@ from pdfrejuvenator.vector_index import (
     validate_vector_index_source,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -91,7 +90,7 @@ def run_process(args: argparse.Namespace) -> int:
     if args.ocr_engine:
         command.extend(["--ocr-engine", args.ocr_engine])
 
-    return subprocess.run(command, cwd=ROOT).returncode
+    return subprocess.run(command, check=False, cwd=ROOT).returncode
 
 
 def run_search(args: argparse.Namespace) -> int:
@@ -106,7 +105,7 @@ def run_search(args: argparse.Namespace) -> int:
         command.extend(["--output-dir", str(args.output_dir.resolve())])
     if args.index:
         command.extend(["--index", str(args.index.resolve())])
-    return subprocess.run(command, cwd=ROOT).returncode
+    return subprocess.run(command, check=False, cwd=ROOT).returncode
 
 
 def run_inventory(args: argparse.Namespace) -> int:

@@ -9,7 +9,7 @@ from typing import Any
 def _load_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"{path} must contain a JSON object")
+        raise ValueError(f"{path} must contain a JSON object")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
     return payload
 
 
@@ -20,7 +20,7 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
             continue
         payload = json.loads(line)
         if not isinstance(payload, dict):
-            raise ValueError(f"{path}:{line_number} must contain a JSON object")
+            raise ValueError(f"{path}:{line_number} must contain a JSON object")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
         records.append(payload)
     return records
 
