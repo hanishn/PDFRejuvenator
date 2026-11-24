@@ -8,7 +8,6 @@ from typing import Any
 
 from pdfrejuvenator.private_workspace import path_is_within
 
-
 OCR_RECORD_SCHEMA_VERSION = "0.5.0-ocr-records-v1"
 
 
@@ -93,7 +92,7 @@ def load_manifest_entries(manifest_path: Path) -> list[dict[str, Any]]:
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     entries = data.get("entries")
     if not isinstance(entries, list):
-        raise ValueError("manifest entries must be a list")
+        raise ValueError("manifest entries must be a list")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
     return entries
 
 

@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 COVERAGE_BOUNDARY_SCHEMA_VERSION = "pdfrejuvenator.coverage_boundary.v0.6"
 EXPECTED_RELEASE_LINE = "PDFRejuvenator v0.6.0 local implementation"
 

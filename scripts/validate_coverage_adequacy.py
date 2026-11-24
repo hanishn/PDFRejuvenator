@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 SCHEMA_VERSION = "pdfrejuvenator.coverage_adequacy.v0.6"
 RELEASE_LINE = "PDFRejuvenator v0.6.0 local implementation"
 REQUIRED_STRATA = {

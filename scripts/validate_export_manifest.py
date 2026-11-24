@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-
 PRIVATE_RUNTIME_JSON_NAMES = {
     "coverage_matrix.json",
     "coverage_boundary.json",
@@ -31,15 +30,7 @@ def _private_runtime_matches(files: list[Path]) -> list[str]:
     matches: list[str] = []
     for file_path in files:
         lowered_name = file_path.name.lower()
-        if lowered_name in PRIVATE_RUNTIME_JSON_NAMES:
-            matches.append(str(file_path))
-        elif lowered_name.startswith("answer_query") and file_path.suffix.lower() in {".json", ".jsonl"}:
-            matches.append(str(file_path))
-        elif lowered_name.startswith("answer_results") and file_path.suffix.lower() in {".json", ".jsonl"}:
-            matches.append(str(file_path))
-        elif lowered_name.startswith("search_results") and file_path.suffix.lower() == ".jsonl":
-            matches.append(str(file_path))
-        elif "vector_index" in lowered_name and file_path.suffix.lower() == ".json":
+        if lowered_name in PRIVATE_RUNTIME_JSON_NAMES or lowered_name.startswith("answer_query") and file_path.suffix.lower() in {".json", ".jsonl"} or lowered_name.startswith("answer_results") and file_path.suffix.lower() in {".json", ".jsonl"} or lowered_name.startswith("search_results") and file_path.suffix.lower() == ".jsonl" or "vector_index" in lowered_name and file_path.suffix.lower() == ".json":
             matches.append(str(file_path))
     return matches
 

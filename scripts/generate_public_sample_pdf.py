@@ -19,7 +19,6 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "samples" / "shadow_power_play_sample.pdf"
 

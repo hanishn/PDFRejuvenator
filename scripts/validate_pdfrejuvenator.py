@@ -7,7 +7,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 SCRIPTS = ROOT / "scripts"
@@ -132,7 +131,7 @@ def synthetic_ocr_record(region_id: str, text: str, bbox: tuple[float, float, fl
 
 def check_ocr_table_structural_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SRC))
-    from doc_pipeline import export_ocr_table_csvs  # noqa: PLC0415
+    from doc_pipeline import export_ocr_table_csvs
 
     false_positive_records = [
         synthetic_ocr_record("fp_title", "Damage Table", (34.0, 100.0, 112.0, 112.0)),
@@ -187,8 +186,8 @@ def check_ocr_table_structural_validation() -> list[CheckResult]:
 
 def check_page_selection_helpers() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from run_pdf_book import parse_pages  # noqa: PLC0415
-    from run_pdf_rejuvenation import page_pipeline_bounds  # noqa: PLC0415
+    from run_pdf_book import parse_pages
+    from run_pdf_rejuvenation import page_pipeline_bounds
 
     checks = [
         ("page parse range", parse_pages("1-3") == [1, 2, 3], "1-3 should parse to [1, 2, 3]"),
@@ -201,7 +200,7 @@ def check_page_selection_helpers() -> list[CheckResult]:
 
 def check_corpus_intake_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_corpus_intake import run_checks  # noqa: PLC0415
+    from validate_corpus_intake import run_checks
 
     checks = run_checks()
     return [
@@ -212,7 +211,7 @@ def check_corpus_intake_validation() -> list[CheckResult]:
 
 def check_corpus_search_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_corpus_search import run_checks  # noqa: PLC0415
+    from validate_corpus_search import run_checks
 
     checks = run_checks()
     return [
@@ -223,7 +222,7 @@ def check_corpus_search_validation() -> list[CheckResult]:
 
 def check_private_workspace_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_private_workspace import run_checks  # noqa: PLC0415
+    from validate_private_workspace import run_checks
 
     checks = run_checks()
     return [
@@ -234,7 +233,7 @@ def check_private_workspace_validation() -> list[CheckResult]:
 
 def check_ocr_records_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_ocr_records import run_checks  # noqa: PLC0415
+    from validate_ocr_records import run_checks
 
     checks = run_checks()
     return [
@@ -245,7 +244,7 @@ def check_ocr_records_validation() -> list[CheckResult]:
 
 def check_ocr_search_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_ocr_search import run_checks  # noqa: PLC0415
+    from validate_ocr_search import run_checks
 
     checks = run_checks()
     return [
@@ -256,7 +255,7 @@ def check_ocr_search_validation() -> list[CheckResult]:
 
 def check_table_records_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_table_records import run_checks  # noqa: PLC0415
+    from validate_table_records import run_checks
 
     checks = run_checks()
     return [
@@ -267,7 +266,7 @@ def check_table_records_validation() -> list[CheckResult]:
 
 def check_vector_index_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_vector_index import run_checks  # noqa: PLC0415
+    from validate_vector_index import run_checks
 
     checks = run_checks()
     return [
@@ -278,7 +277,7 @@ def check_vector_index_validation() -> list[CheckResult]:
 
 def check_answer_query_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_answer_query import run_checks  # noqa: PLC0415
+    from validate_answer_query import run_checks
 
     checks = run_checks()
     return [
@@ -289,7 +288,7 @@ def check_answer_query_validation() -> list[CheckResult]:
 
 def check_release_review_summary_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_release_review_summary import run_checks  # noqa: PLC0415
+    from validate_release_review_summary import run_checks
 
     checks = run_checks()
     return [
@@ -300,7 +299,7 @@ def check_release_review_summary_validation() -> list[CheckResult]:
 
 def check_export_manifest_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_export_manifest import run_checks  # noqa: PLC0415
+    from validate_export_manifest import run_checks
 
     checks = run_checks()
     return [
@@ -311,7 +310,7 @@ def check_export_manifest_validation() -> list[CheckResult]:
 
 def check_coverage_boundary_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_coverage_boundary import run_checks  # noqa: PLC0415
+    from validate_coverage_boundary import run_checks
 
     checks = run_checks()
     return [
@@ -322,7 +321,7 @@ def check_coverage_boundary_validation() -> list[CheckResult]:
 
 def check_coverage_adequacy_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_coverage_adequacy import run_checks  # noqa: PLC0415
+    from validate_coverage_adequacy import run_checks
 
     checks = run_checks()
     return [
@@ -333,7 +332,7 @@ def check_coverage_adequacy_validation() -> list[CheckResult]:
 
 def check_private_coverage_matrix_validation() -> list[CheckResult]:
     sys.path.insert(0, str(SCRIPTS))
-    from validate_private_coverage_matrix import run_checks  # noqa: PLC0415
+    from validate_private_coverage_matrix import run_checks
 
     checks = run_checks()
     return [

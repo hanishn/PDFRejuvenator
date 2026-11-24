@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-
 SUMMARY_SCHEMA_VERSION = "pdfrejuvenator.release_review_summary.v0.6"
 EXPECTED_VECTOR_VALIDATION = "VECTOR INDEX SUMMARY: checks=32 failures=0"
 EXPECTED_PROJECT_VALIDATION = "SUMMARY: checks=213 failures=0 warnings=0"

@@ -7,14 +7,13 @@ import tempfile
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pdfrejuvenator.corpus_search import write_jsonl  # noqa: E402
-from pdfrejuvenator.vector_index import (  # noqa: E402
-    DeterministicHashEmbeddingProvider,
+from pdfrejuvenator.corpus_search import write_jsonl
+from pdfrejuvenator.vector_index import (
     VECTOR_INDEX_SCHEMA_VERSION,
+    DeterministicHashEmbeddingProvider,
     build_vector_index,
     build_vector_index_payload,
     create_embedding_provider,
@@ -27,7 +26,6 @@ from pdfrejuvenator.vector_index import (  # noqa: E402
     validate_vector_index_provider,
     validate_vector_index_source,
 )
-
 
 PRIVATE_VECTOR_RUNTIME_PATTERNS = (
     "*/coverage_matrix.json",

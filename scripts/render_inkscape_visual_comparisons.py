@@ -13,8 +13,7 @@ from PIL import Image, ImageChops
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from doc_pipeline import read_json, write_json, write_text  # noqa: E402
-
+from doc_pipeline import read_json, write_json, write_text
 
 DEFAULT_INKSCAPE = Path(r"C:\Program Files\Inkscape\bin\inkscape.exe")
 
@@ -106,7 +105,7 @@ def compare_page(page: dict[str, Any], render_root: Path, inkscape: Path) -> dic
         difference_ratio = compare_images(source_path, rendered_png, side_by_side, diff_png)
         status = "VISUAL_REVIEW_REQUIRED"
         error = None
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
         difference_ratio = 1.0
         status = "RENDER_FAILED"
         error = str(exc)

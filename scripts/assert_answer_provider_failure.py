@@ -11,7 +11,7 @@ from typing import Any
 
 
 class HttpErrorHandler(BaseHTTPRequestHandler):
-    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API.
+    def do_POST(self) -> None:
         self.send_response(500)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -22,7 +22,7 @@ class HttpErrorHandler(BaseHTTPRequestHandler):
 
 
 class TimeoutHandler(BaseHTTPRequestHandler):
-    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API.
+    def do_POST(self) -> None:
         threading.Event().wait(3.0)
 
     def log_message(self, _format: str, *args: object) -> None:

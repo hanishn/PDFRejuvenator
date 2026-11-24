@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "run_pdf_rejuvenation.py"
 
@@ -62,6 +61,7 @@ def run_one(args: argparse.Namespace, pdf: Path, log_root: Path) -> dict[str, An
     command = build_command(args, pdf)
     proc = subprocess.run(
         command,
+        check=False,
         cwd=ROOT,
         text=True,
         capture_output=True,

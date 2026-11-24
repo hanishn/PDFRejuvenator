@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 EXPECTED_PROVIDER_DIMENSIONS = 768
 MINIMUM_PRIVATE_INPUTS = 7
 
@@ -72,7 +71,7 @@ def validate_rows(
 def load_rows(path: Path) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
-        raise ValueError("matrix JSON must be a list")
+        raise ValueError("matrix JSON must be a list")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
     if not all(isinstance(row, dict) for row in payload):
         raise ValueError("matrix JSON rows must be objects")
     return payload

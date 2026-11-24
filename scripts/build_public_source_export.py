@@ -4,7 +4,6 @@ import argparse
 import shutil
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 SCRIPT_ALLOWLIST = [
@@ -58,6 +57,7 @@ ROOT_FILES = [
 ]
 
 DOC_FILES = [
+    "NATIVE_DOCX.md",
     "ANSWER_QUERY.md",
     "CORPUS_INTAKE_ARCHITECTURE.md",
     "GITHUB_PUBLICATION_CHECKLIST.md",
@@ -141,7 +141,13 @@ def build_export(output_dir: Path, clean: bool) -> Path:
     copy_tree(ROOT / "pdfrejuvenator", output_dir / "pdfrejuvenator")
     copy_tree(ROOT / "src", output_dir / "src")
     copy_tree(ROOT / ".github", output_dir / ".github")
-    copy_tree(ROOT / "tests", output_dir / "tests")
+    copy_files(ROOT / "tests", output_dir / "tests", [
+        "test_native_docx.py",
+        "test_public_scrub_assets.py",
+    ])
+    copy_files(ROOT / "tests" / "playwright", output_dir / "tests" / "playwright", [
+        "answer-query.spec.js",
+    ])
     copy_files(ROOT / "scripts", output_dir / "scripts", SCRIPT_ALLOWLIST)
     copy_files(ROOT, output_dir, ROOT_FILES)
     copy_files(ROOT / "docs", output_dir / "docs", DOC_FILES)

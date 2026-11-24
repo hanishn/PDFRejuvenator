@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import copy
+import csv
 import hashlib
 import html
 import importlib
@@ -9,11 +12,8 @@ import re
 import shutil
 import subprocess
 import sys
-import zipfile
-import csv
-import copy
-import base64
 import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,7 +63,7 @@ def dependency_versions() -> dict[str, Any]:
         try:
             mod = importlib.import_module(name)
             versions[name] = getattr(mod, "__version__", "installed-version-unknown")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
             versions[name] = f"unavailable: {type(exc).__name__}"
     try:
         proc = subprocess.run(
@@ -75,7 +75,7 @@ def dependency_versions() -> dict[str, Any]:
         )
         first = proc.stdout.splitlines()[0] if proc.stdout else proc.stderr.splitlines()[0]
         versions["tesseract_cli"] = first
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
         versions["tesseract_cli"] = f"unavailable: {type(exc).__name__}"
     return versions
 
@@ -372,7 +372,7 @@ def extract_embedded_images(doc: fitz.Document, page: fitz.Page, page_id: str, i
             with Image.open(out_path) as pil:
                 width, height = pil.size
                 mode = pil.mode
-        except Exception:
+        except Exception:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
             width = height = None
             mode = "unreadable"
         rects = page.get_image_rects(xref)
@@ -536,7 +536,7 @@ def horizontal_rule_segments(page: fitz.Page) -> list[tuple[float, float, float]
     segments: list[tuple[float, float, float]] = []
     try:
         drawings = page.get_drawings()
-    except Exception:
+    except Exception:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
         return segments
     for drawing in drawings:
         for item in drawing.get("items", []):
@@ -794,7 +794,7 @@ def export_table_csvs(page: fitz.Page, page_id: str, table_dir: Path, config: di
 
     try:
         found_tables = page.find_tables().tables
-    except Exception:
+    except Exception:  # noqa: BLE001 - Preserve best-effort diagnostics and per-artifact failure isolation.
         found_tables = []
     for table in found_tables:
         rows = clean_table_rows(table.extract())
@@ -973,9 +973,7 @@ def ocr_table_structure_valid(
         return False
     if max(first_centers) - min(first_centers) > 48.0:
         return False
-    if max(second_centers) - min(second_centers) > 84.0:
-        return False
-    return True
+    return not max(second_centers) - min(second_centers) > 84.0
 
 
 def write_table_record(
@@ -1137,7 +1135,7 @@ def export_region_images(
         out_path = region_dir / f"{region.region_id}_gray_alpha.png"
         try:
             pix.save(str(raw_path))
-        except Exception:
+        except Exception:  # noqa: BLE001, S112 - Preserve best-effort diagnostics and per-artifact failure isolation.
             continue
         with Image.open(raw_path) as img:
             gray = img.convert("L")
@@ -1359,7 +1357,7 @@ def rich_text_rtf(region_records: list[dict[str, Any]]) -> str:
                 font = str(span.get("font", "Times New Roman"))
                 font_id = rtf_font_index(font, fonts)
                 color_id = rtf_color_index(str(span.get("color", "000000")), colors)
-                size = max(2, int(round(float(span.get("size_pt", 11.0)) * 2)))
+                size = max(2, round(float(span.get("size_pt", 11.0)) * 2))
                 style = [
                     f"\\f{font_id}",
                     f"\\fs{size}",
@@ -1636,11 +1634,11 @@ def _document_rels_xml(image_count: int, embedded_package_count: int = 0) -> str
 
 
 def _points_to_twips(value: float) -> int:
-    return int(round(value * 20))
+    return round(value * 20)
 
 
 def _points_to_emu(value: float) -> int:
-    return int(round(value * 12700))
+    return round(value * 12700)
 
 
 def _docpr_id(value: str) -> int:
@@ -1654,7 +1652,7 @@ def _paragraph(text: str, style: dict[str, Any] | None = None, alignment: str = 
 
 def _run_properties(span: dict[str, Any], hidden: bool = False) -> str:
     font = html.escape(str(span.get("font", "Arial")))
-    size = max(1, int(round(float(span.get("size_pt", 11.0)) * 2)))
+    size = max(1, round(float(span.get("size_pt", 11.0)) * 2))
     color = html.escape(str(span.get("color", "000000")))
     bold = "<w:b/>" if span.get("bold") else ""
     italic = "<w:i/>" if span.get("italic") else ""

@@ -5,16 +5,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pdfrejuvenator.corpus_search import (  # noqa: E402
+from pdfrejuvenator.corpus_search import (
     TABLE_RECORD_SEARCH_SCHEMA_VERSION,
     build_index_from_table_records,
 )
-from pdfrejuvenator.private_workspace import init_private_workspace  # noqa: E402
-from pdfrejuvenator.table_records import (  # noqa: E402
+from pdfrejuvenator.private_workspace import init_private_workspace
+from pdfrejuvenator.table_records import (
     TABLE_RECORD_SCHEMA_VERSION,
     build_table_record,
     validate_table_record_payload,

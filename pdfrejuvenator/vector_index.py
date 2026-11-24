@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-
 VECTOR_INDEX_SCHEMA_VERSION = "pdfrejuvenator.vector_index.v0.6"
 VECTOR_CHUNK_SCHEMA_VERSION = "pdfrejuvenator.vector_chunk.v0.6"
 DEFAULT_VECTOR_DIMENSIONS = 32
@@ -222,7 +221,7 @@ def load_search_index(path: Path) -> list[dict[str, Any]]:
             continue
         payload = json.loads(line)
         if not isinstance(payload, dict):
-            raise ValueError(f"search index line {line_number} must be a JSON object")
+            raise ValueError(f"search index line {line_number} must be a JSON object")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
         records.append(payload)
     return records
 
@@ -361,7 +360,7 @@ def build_vector_index(
 def load_vector_index(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("vector index must be a JSON object")
+        raise ValueError("vector index must be a JSON object")  # noqa: TRY004 - Keep the existing invalid-input ValueError contract.
     return payload
 
 
