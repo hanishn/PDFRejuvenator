@@ -420,12 +420,33 @@ def run_extract_ocr_records(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def run_convert_docx(args: argparse.Namespace) -> int:
+    from pdfrejuvenator.native_docx import convert_pdf
+
+    try:
+        result = convert_pdf(args.source_pdf, args.output_root, args.pages, args.corrections)
+    except (ValueError, OSError, RuntimeError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"DOCX_CONVERSION_PASS: {result['docx']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pdfrejuvenator",
         description="Convert PDF pages into editable SVG review output.",
     )
     subparsers = parser.add_subparsers(dest="command")
+
+    convert = subparsers.add_parser("convert-docx", help="Convert PDF geometry to editable native Word content.")
+    convert.add_argument("source_pdf", type=Path)
+    convert.add_argument("--output-root", type=Path, required=True, help="New private directory outside repositories.")
+    convert.add_argument("--pages", help="One-based pages, for example 1-4,8.")
+    convert.add_argument("--corrections", type=Path, help="Private source-hash-bound coordinate/correction JSON.")
+    convert.set_defaults(func=run_convert_docx)
+
 
     process = subparsers.add_parser(
         "process",

@@ -346,3 +346,7 @@ This public version is open source. Future commercial products or hosted service
 - `docs\VECTOR_INDEX.md`
 
 Private validation PDFs and legacy fixture scripts are retained locally for regression testing. They are not public fixtures and are not part of a public GitHub release surface.
+
+## Native editable Word output
+
+Use `python -m pdfrejuvenator convert-docx INPUT.pdf --output-root /path/to/private/new-run`. See [native Word conversion](docs/NATIVE_DOCX.md) for capabilities, private correction rules and publication review requirements.

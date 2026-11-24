@@ -85,19 +85,19 @@ class Finding:
 
 
 def should_scan(path: Path) -> bool:
-    if path.name == SELF_NAME:
-        return False
     if any(part in SKIP_PARTS for part in path.parts):
         return False
-    return path.suffix.lower() in TEXT_SUFFIXES
+    return path.suffix.lower() in TEXT_SUFFIXES or not path.suffix
 
 
 def scan_file(path: Path, root: Path, patterns: list[tuple[str, re.Pattern[str]]]) -> list[Finding]:
     findings: list[Finding] = []
+    if path.name == SELF_NAME:
+        patterns = [(category, pattern) for category, pattern in patterns if category == "external denylist"]
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
-        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        return [Finding("non-text payload", path.relative_to(root), 0, "text source must be valid UTF-8")]
 
     rel = path.relative_to(root)
     for line_number, line in enumerate(lines, start=1):
@@ -145,6 +145,21 @@ def scan_root(root: Path, patterns: list[tuple[str, re.Pattern[str]]]) -> list[F
         if not path.is_file():
             continue
         rel = path.relative_to(root)
+        if any(part in SKIP_PARTS for part in rel.parts):
+            continue
+        allowed_pdf = (
+            rel.as_posix() == "samples/shadow_power_play_sample.pdf"
+            or any(pattern.search(rel.as_posix()) for pattern in PUBLIC_SOURCE_PDF_PATTERNS)
+        )
+        if rel.suffix.lower() not in TEXT_SUFFIXES and rel.suffix and rel.suffix.lower() not in GENERATED_SUFFIXES:
+            findings.append(Finding("unapproved binary asset", rel, 0, "only reviewed text source and approved synthetic PDF fixtures are publishable"))
+            continue
+        if rel.suffix.lower() == ".pdf" and not allowed_pdf:
+            findings.append(Finding("unapproved binary asset", rel, 0, "PDF is not an approved synthetic fixture"))
+            continue
+        if path.is_symlink():
+            findings.append(Finding("symlink", rel, 0, "public exports must not dereference external files"))
+            continue
         path_findings = scan_path(path, root, patterns)
         findings.extend(path_findings)
         if any(finding.category == "private source pdf" for finding in path_findings):
